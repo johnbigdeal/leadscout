@@ -1,0 +1,1006 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  pointerWithin,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrency } from "@/lib/currency-context";
+import { BusinessCard } from "@/components/business-card";
+import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign } from "lucide-react";
+
+type Business = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  isWhatsapp: boolean | null;
+  website: string | null;
+  hasWebsite: boolean | null;
+  category: string | null;
+  rating: string | null;
+  reviewsCount: number | null;
+  seo?: { pagespeedPerf: number | null; pagespeedSeo: number | null; pagespeedA11y: number | null } | null;
+  opportunityScore?: { score: number; reasons: string[] } | null;
+  isLead?: boolean;
+};
+
+type Lead = {
+  id: string;
+  businessId: string;
+  pipelineId: string | null;
+  stage: string;
+  tags: string[];
+  categoryId: string | null;
+  category: { id: string; name: string; color: string } | null;
+  createdAt: string;
+  business: Business | null;
+};
+
+type LeadCategory = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+type Activity = {
+  id: string;
+  type: string;
+  body: string | null;
+  createdAt: string;
+};
+
+const STAGES = ["new", "contacted", "qualified", "won", "lost"];
+
+const STAGE_META: Record<string, { border: string; bg: string; dot: string; label: string }> = {
+  new: { border: "border-t-primary/30", bg: "bg-primary/5", dot: "bg-primary", label: "text-primary" },
+  contacted: { border: "border-t-amber-400/30", bg: "bg-amber-50", dot: "bg-amber-400", label: "text-amber-600" },
+  qualified: { border: "border-t-violet-400/30", bg: "bg-violet-50", dot: "bg-violet-400", label: "text-violet-600" },
+  won: { border: "border-t-emerald-400/30", bg: "bg-emerald-50", dot: "bg-emerald-400", label: "text-emerald-600" },
+  lost: { border: "border-t-red-400/30", bg: "bg-red-50", dot: "bg-red-400", label: "text-red-600" },
+};
+
+function getStageMeta(stage: string) {
+  return STAGE_META[stage] || { border: "border-t-zinc-300", bg: "bg-zinc-50", dot: "bg-zinc-400", label: "text-zinc-600" };
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  return headers;
+}
+
+function SortableLeadCard({ lead, onClick, onQuickStage }: { lead: Lead; onClick: (lead: Lead) => void; onQuickStage: (leadId: string, stage: string) => void }) {
+  const t = useTranslations("crm");
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: lead.id });
+  const meta = getStageMeta(lead.stage);
+  const score = lead.business?.opportunityScore?.score ?? 0;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-xl border border-zinc-200 border-t-4 bg-white shadow-sm transition-shadow hover:shadow-md ${meta.border}`}
+    >
+      <div className="flex items-start gap-2 p-3">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="mt-0.5 cursor-grab text-zinc-300 hover:text-zinc-400 active:cursor-grabbing"
+          aria-label="drag handle"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onClick(lead)}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="truncate text-sm font-semibold text-zinc-900">
+              {lead.business?.name ?? "—"}
+            </h4>
+            {score > 0 && (
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                {score}
+              </span>
+            )}
+          </div>
+          {lead.category && (
+            <div className="mt-1">
+              <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ backgroundColor: lead.category.color }}>
+                {lead.category.name}
+              </span>
+            </div>
+          )}
+          {(lead.business?.category || lead.business?.rating) && (
+            <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+              {lead.business?.category && <span>{lead.business.category}</span>}
+              {lead.business?.rating && (
+                <span className="text-amber-500">★ {Number(lead.business.rating).toFixed(1)}</span>
+              )}
+            </div>
+          )}
+          {lead.business?.phone && (
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-600">
+              <Phone className="h-3 w-3 text-zinc-400" />
+              {lead.business.phone}
+              {lead.business.isWhatsapp && (
+                <MessageCircle className="h-3 w-3 text-emerald-500" />
+              )}
+            </div>
+          )}
+          {lead.tags?.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {lead.tags.map((tag, i) => (
+                <Badge key={i} variant="outline" className="border-zinc-200 bg-zinc-50 text-[10px] font-normal text-zinc-600">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </button>
+      </div>
+      <div className="flex items-center gap-1 border-t border-zinc-100 px-2 py-1.5">
+        {STAGES.filter(s => s !== lead.stage).map(stage => (
+          <button
+            key={stage}
+            onClick={(e) => { e.stopPropagation(); onQuickStage(lead.id, stage); }}
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium capitalize opacity-60 hover:opacity-100 transition-opacity ${
+              STAGE_META[stage]?.label || "text-zinc-500"
+            }`}
+          >
+            {t(stage as "new" | "contacted" | "qualified" | "won" | "lost")}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KanbanColumn({ stage, leads, onLeadClick, onQuickStage }: { stage: string; leads: Lead[]; onLeadClick: (lead: Lead) => void; onQuickStage: (leadId: string, stage: string) => void }) {
+  const t = useTranslations("crm");
+  const { setNodeRef, isOver } = useDroppable({ id: `column-${stage}` });
+  const meta = getStageMeta(stage);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex w-72 shrink-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50/80 transition-colors min-h-[250px] ${isOver ? "bg-accent/10 ring-2 ring-accent/30" : ""}`}
+    >
+      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+          <h3 className={`text-sm font-semibold ${meta.label}`}>
+            {t(stage as "new" | "contacted" | "qualified" | "won" | "lost")}
+          </h3>
+        </div>
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-zinc-200 px-1.5 text-xs font-semibold text-zinc-600">
+          {leads.length}
+        </span>
+      </div>
+      <div className="flex-1 space-y-2.5 p-3">
+        <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+          {leads.map((lead) => (
+            <SortableLeadCard key={lead.id} lead={lead} onClick={onLeadClick} onQuickStage={onQuickStage} />
+          ))}
+        </SortableContext>
+        {leads.length === 0 && (
+          <div className="flex flex-col items-center gap-1 py-8 text-center">
+            <User className="h-8 w-8 text-zinc-300" />
+            <p className="text-sm text-zinc-400">{t("noLeads")}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type LeadService = {
+  id: string;
+  leadId: string;
+  serviceId: string;
+  cost: string;
+  recurrence: string;
+  serviceName: string;
+};
+
+function LeadDetailDialog({
+  lead, open, onOpenChange, onStageChange, onTagsChange, onAddNote, onDelete, onServiceChange, categories, onCategoryChange, pipelines, activePipelineId, onPipelineChange,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStageChange: (stage: string) => void;
+  onTagsChange: (tags: string[]) => void;
+  onAddNote: (note: string) => void;
+  onDelete: () => void;
+  onServiceChange: () => void;
+  categories: LeadCategory[];
+  onCategoryChange: (categoryId: string | null) => void;
+  pipelines: Pipeline[];
+  activePipelineId: string | null | undefined;
+  onPipelineChange: (pipelineId: string | null) => void;
+}) {
+  const t = useTranslations("crm");
+  const { currency, convertAmount } = useCurrency();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [noteText, setNoteText] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [leadServices, setLeadServices] = useState<LeadService[]>([]);
+  const [allServices, setAllServices] = useState<any[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceCost, setServiceCost] = useState("");
+  const [serviceRecurrence, setServiceRecurrence] = useState("one_time");
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#0369A1");
+
+  const RECURRENCE_LABELS: Record<string, string> = {
+    one_time: "Único",
+    monthly: "Mensual",
+    annual: "Anual",
+    lifetime: "Vitalicio",
+  };
+
+  useEffect(() => {
+    if (!lead) return;
+    setNoteText("");
+    setLeadServices([]);
+    (async () => {
+      const headers = await getAuthHeaders();
+      const [actRes, svcRes, allSvcRes] = await Promise.all([
+        fetch(`/api/leads/${lead.id}/activities`, { headers }),
+        fetch(`/api/leads/${lead.id}/services`, { headers }),
+        fetch(`/api/services`, { headers }),
+      ]);
+      if (actRes.ok) setActivities(await actRes.json());
+      if (svcRes.ok) setLeadServices(await svcRes.json());
+      if (allSvcRes.ok) setAllServices(await allSvcRes.json());
+    })();
+  }, [lead]);
+
+  async function addServiceToLead() {
+    if (!selectedServiceId || !lead) return;
+    const svc = allServices.find(s => s.id === selectedServiceId);
+    const cost = serviceCost || svc?.defaultCost || "0";
+    const recurrence = serviceRecurrence || svc?.recurrence || "one_time";
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${lead.id}/services`, {
+      method: "POST", headers,
+      body: JSON.stringify({ serviceId: selectedServiceId, cost, recurrence }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setLeadServices(prev => [...prev, created]);
+      setSelectedServiceId("");
+      setServiceCost("");
+      await fetch(`/api/leads/${lead.id}/activities`, {
+        method: "POST", headers,
+        body: JSON.stringify({ type: "service_added", body: `Servicio agregado: ${svc?.name} - ${new Intl.NumberFormat("es", { style: "currency", currency }).format(convertAmount(Number(cost)))}` }),
+      }).catch(() => {});
+      onServiceChange();
+    } else {
+      const err = await res.text();
+      console.error("Error al agregar servicio:", res.status, err);
+      alert("No se pudo agregar el servicio. Verificá la consola.");
+    }
+  }
+
+  async function removeServiceFromLead(serviceId: string) {
+    if (!lead) return;
+    const svc = leadServices.find(ls => ls.serviceId === serviceId);
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${lead.id}/services`, {
+      method: "DELETE", headers,
+      body: JSON.stringify({ serviceId }),
+    });
+    if (res.ok) {
+      setLeadServices(prev => prev.filter(s => s.serviceId !== serviceId));
+      await fetch(`/api/leads/${lead.id}/activities`, {
+        method: "POST", headers,
+        body: JSON.stringify({ type: "service_removed", body: `Servicio eliminado: ${svc?.serviceName || serviceId}` }),
+      }).catch(() => {});
+      onServiceChange();
+    } else {
+      console.error("Error al eliminar servicio:", res.status, await res.text());
+      alert("No se pudo eliminar el servicio.");
+    }
+  }
+
+  if (!lead) return null;
+
+  function formatDate(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function submitNote() {
+    if (!noteText.trim()) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${lead!.id}/activities`, {
+      method: "POST", headers,
+      body: JSON.stringify({ type: "note", body: noteText }),
+    });
+    if (res.ok) {
+      const newActivity = await res.json();
+      setActivities((prev) => [newActivity, ...prev]);
+      setNoteText("");
+      onAddNote(noteText);
+    }
+  }
+
+  async function submitTag() {
+    if (!tagInput.trim()) return;
+    const newTags = [...(lead!.tags || []), tagInput.trim()];
+    setTagInput("");
+    onTagsChange(newTags);
+  }
+
+  async function removeTag(tag: string) {
+    onTagsChange((lead!.tags || []).filter((t) => t !== tag));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="!top-[3%] !-translate-y-0 !max-h-[94vh] max-w-2xl flex flex-col">
+        <div className="flex flex-col h-full">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg">{lead.business?.name ?? "—"}</DialogTitle>
+                <DialogDescription>{t("createdAt")}: {formatDate(lead.createdAt)}</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 space-y-5 overflow-y-auto min-h-0 pr-1">
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <ArrowUpRight className="h-3 w-3" />
+                {t("changeStage")}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {STAGES.map((stage) => {
+                  const meta = getStageMeta(stage);
+                  return (
+                    <button
+                      key={stage}
+                      onClick={() => onStageChange(stage)}
+                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                        lead.stage === stage
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {t(stage as "new" | "contacted" | "qualified" | "won" | "lost")}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {pipelines.length > 0 && (
+              <div>
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  <ArrowUpRight className="h-3 w-3" />
+                  Pipeline
+                </label>
+                <select
+                  value={lead.pipelineId || "__none__"}
+                  onChange={e => onPipelineChange(e.target.value === "__none__" ? null : e.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="__none__">Sin pipeline</option>
+                  {pipelines.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <DollarSign className="h-3 w-3" />
+                Servicios
+              </label>
+              {leadServices.length > 0 && (
+                <div className="mb-2 space-y-1.5">
+                  {leadServices.map(ls => (
+                    <div key={ls.id} className="flex items-center justify-between rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-zinc-800">{ls.serviceName}</p>
+                          <span className="rounded bg-zinc-200 px-1 py-0 text-[10px] text-zinc-600">{RECURRENCE_LABELS[ls.recurrence] || ls.recurrence}</span>
+                        </div>
+                        <p className="text-xs text-zinc-500">{new Intl.NumberFormat("es", { style: "currency", currency }).format(convertAmount(Number(ls.cost)))}</p>
+                      </div>
+                      <button onClick={() => removeServiceFromLead(ls.serviceId)} className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {allServices.length > 0 && (
+                <div className="space-y-2">
+                  <select
+                    value={selectedServiceId}
+                    onChange={e => {
+                      setSelectedServiceId(e.target.value);
+                      const svc = allServices.find(s => s.id === e.target.value);
+                      setServiceCost(svc?.defaultCost || "");
+                      setServiceRecurrence(svc?.recurrence || "one_time");
+                    }}
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <option value="">Seleccionar servicio...</option>
+                    {allServices.filter(s => !leadServices.find(ls => ls.serviceId === s.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="Costo (USD)"
+                      value={serviceCost}
+                      onChange={e => setServiceCost(e.target.value)}
+                      className="h-9 flex-1 text-sm"
+                    />
+                    <select
+                      value={serviceRecurrence}
+                      onChange={e => setServiceRecurrence(e.target.value)}
+                      className="h-9 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="one_time">Único</option>
+                      <option value="monthly">Mensual</option>
+                      <option value="annual">Anual</option>
+                      <option value="lifetime">Vitalicio</option>
+                    </select>
+                  </div>
+                  <Button size="sm" onClick={addServiceToLead} disabled={!selectedServiceId} className="w-full">
+                    <Plus className="mr-1 h-4 w-4" />
+                    Agregar servicio
+                  </Button>
+                </div>
+              )}
+              {allServices.length === 0 && (
+                <p className="text-xs text-zinc-400">Crea servicios en el panel de ventas para asignarlos aquí.</p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <Tag className="h-3 w-3" />
+                Categoría
+              </label>
+              {lead.category && (
+                <div className="mb-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white" style={{ backgroundColor: lead.category.color }}>
+                    {lead.category.name}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <select
+                  value={lead.categoryId || ""}
+                  onChange={e => onCategoryChange(e.target.value || null)}
+                  className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <Button size="sm" variant="outline" onClick={() => setShowNewCategory(!showNewCategory)}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {showNewCategory && (
+                <div className="mt-2 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  <Input
+                    placeholder="Nombre de categoría"
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    className="text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={newCategoryColor}
+                      onChange={e => setNewCategoryColor(e.target.value)}
+                      className="h-8 w-8 rounded border border-zinc-200"
+                    />
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      disabled={!newCategoryName.trim()}
+                      onClick={async () => {
+                        const headers = await getAuthHeaders();
+                        headers["Content-Type"] = "application/json";
+                        const res = await fetch("/api/lead-categories", {
+                          method: "POST", headers,
+                          body: JSON.stringify({ name: newCategoryName.trim(), color: newCategoryColor }),
+                        });
+                        if (res.ok) {
+                          const cat = await res.json();
+                          onCategoryChange(cat.id);
+                          setShowNewCategory(false);
+                          setNewCategoryName("");
+                          setNewCategoryColor("#0369A1");
+                        }
+                      }}
+                    >
+                      Crear
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <Tag className="h-3 w-3" />
+                {t("tags")}
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(lead.tags || []).map((tag) => (
+                  <Badge key={tag} variant="secondary" className="flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/15">
+                    {tag}
+                    <button onClick={() => removeTag(tag)} className="text-primary/50 hover:text-primary">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <div className="flex items-center">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitTag(); } }}
+                    placeholder={t("tagPlaceholder")}
+                    className="h-8 w-36 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {lead.business && (
+              <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+                <BusinessCard business={lead.business} />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <Plus className="h-3 w-3" />
+                {t("notes")}
+              </label>
+              <div className="mb-3 flex gap-2">
+                <Input
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitNote(); } }}
+                  placeholder={t("notePlaceholder")}
+                  className="flex-1"
+                />
+                <Button size="sm" onClick={submitNote} disabled={!noteText.trim()}>
+                  {t("saveNote")}
+                </Button>
+              </div>
+              <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                {activities.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-zinc-400">{t("noActivities")}</p>
+                ) : (
+                  activities.map((a) => (
+                    <div key={a.id} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="border-zinc-200 text-[10px] font-normal capitalize text-zinc-500">
+                          {a.type}
+                        </Badge>
+                        <span className="text-[10px] text-zinc-400">{formatDate(a.createdAt)}</span>
+                      </div>
+                      {a.body && <p className="mt-1 text-sm text-zinc-700">{a.body}</p>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-100 pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                onClick={() => { if (confirm(t("confirmDelete"))) onDelete(); }}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {t("deleteLead")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Pipeline = {
+  id: string;
+  name: string;
+  category: string | null;
+  stages: string[];
+};
+
+export default function CrmPage() {
+  const t = useTranslations("crm");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [openDetail, setOpenDetail] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [addingLead, setAddingLead] = useState(false);
+  const [overColumn, setOverColumn] = useState<string | null>(null);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [activePipeline, setActivePipeline] = useState<Pipeline | null>(null);
+  const [categories, setCategories] = useState<LeadCategory[]>([]);
+  const [showCreatePipeline, setShowCreatePipeline] = useState(false);
+  const [newPipelineName, setNewPipelineName] = useState("");
+  const [newPipelineCategory, setNewPipelineCategory] = useState("");
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  const fetchPipelines = useCallback(async () => {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/pipelines", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setPipelines(data);
+      if (data.length > 0 && !activePipeline) setActivePipeline(data[0]);
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async () => {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/lead-categories", { headers });
+    if (res.ok) setCategories(await res.json());
+  }, []);
+
+  const fetchLeads = useCallback(async (pipelineId?: string) => {
+    const headers = await getAuthHeaders();
+    const url = pipelineId ? `/api/leads?pipelineId=${pipelineId}` : "/api/leads";
+    const res = await fetch(url, { headers });
+    if (res.ok) setLeads(await res.json());
+  }, []);
+
+  useEffect(() => { fetchPipelines(); fetchCategories(); }, []);
+  useEffect(() => { fetchLeads(activePipeline?.id); }, [activePipeline, fetchLeads]);
+
+  function getStageLeads(stage: string) {
+    return leads.filter((l) => l.stage === stage);
+  }
+
+  function handleLeadClick(lead: Lead) {
+    setSelectedLead(lead);
+    setOpenDetail(true);
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveLead(leads.find((l) => l.id === event.active.id) ?? null);
+    setOverColumn(null);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { over } = event;
+    if (!over) { setOverColumn(null); return; }
+    const lead = leads.find((l) => l.id === over.id);
+    if (lead) { setOverColumn(lead.stage); return; }
+    const match = String(over.id).match(/^column-(.+)$/);
+    if (match) { setOverColumn(match[1]); return; }
+    setOverColumn(null);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    const leadId = active.id as string;
+    const activeLeadObj = leads.find((l) => l.id === leadId);
+    if (!activeLeadObj) { setActiveLead(null); setOverColumn(null); return; }
+
+    let newStage: string | null = null;
+
+    if (over) {
+      const overLead = leads.find((l) => l.id === over.id);
+      if (overLead) newStage = overLead.stage;
+      else {
+        const match = String(over.id).match(/^column-(.+)$/);
+        if (match) newStage = match[1];
+      }
+    }
+
+    if (!newStage && overColumn) {
+      newStage = overColumn;
+    }
+
+    if (!newStage || newStage === activeLeadObj.stage) {
+      setActiveLead(null);
+      setOverColumn(null);
+      return;
+    }
+
+    const prevStage = activeLeadObj.stage;
+    setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, stage: newStage } : l));
+    setActiveLead(null);
+    setOverColumn(null);
+
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${leadId}`, { method: "PATCH", headers, body: JSON.stringify({ stage: newStage }) });
+    if (!res.ok) {
+      console.error("PATCH failed:", res.status, await res.text());
+      alert("Error al cambiar etapa. Verificá la consola.");
+      setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, stage: prevStage } : l));
+      return;
+    }
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/leads/${leadId}/activities`, {
+      method: "POST", headers,
+      body: JSON.stringify({ type: "stage_change", body: `Cambio de etapa: ${prevStage} → ${newStage}` }),
+    }).catch(() => {});
+    fetchLeads();
+  }
+
+  async function handleStageChange(stage: string) {
+    if (!selectedLead) return;
+    const prevStage = selectedLead.stage;
+    setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, stage } : l));
+    setSelectedLead((prev) => prev ? { ...prev, stage } : null);
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ stage }) });
+    if (!res.ok) {
+      console.error("PATCH failed:", res.status, await res.text());
+      alert("Error al cambiar etapa. Verificá la consola.");
+      setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, stage: prevStage } : l));
+      setSelectedLead((prev) => prev ? { ...prev, stage: prevStage } : null);
+      return;
+    }
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/leads/${selectedLead.id}/activities`, {
+      method: "POST", headers,
+      body: JSON.stringify({ type: "stage_change", body: `Cambio de etapa: ${prevStage} → ${stage}` }),
+    }).catch(() => {});
+    fetchLeads();
+  }
+
+  async function handleTagsChange(tags: string[]) {
+    if (!selectedLead) return;
+    setSelectedLead((prev) => prev ? { ...prev, tags } : null);
+    setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, tags } : l));
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ tags }) });
+  }
+
+  async function handleCategoryChange(categoryId: string | null) {
+    if (!selectedLead) return;
+    const cat = categories.find(c => c.id === categoryId);
+    setSelectedLead((prev) => prev ? { ...prev, categoryId: categoryId || null, category: cat || null } : null);
+    setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, categoryId: categoryId || null, category: cat || null } : l));
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ categoryId }) });
+    fetchCategories();
+  }
+
+  async function handleQuickStage(leadId: string, stage: string) {
+    const prevLeads = [...leads];
+    setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, stage } : l));
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${leadId}`, { method: "PATCH", headers, body: JSON.stringify({ stage }) });
+    if (!res.ok) {
+      console.error("PATCH failed:", res.status, await res.text());
+      alert("Error al cambiar etapa. Verificá la consola.");
+      setLeads(prevLeads);
+      return;
+    }
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/leads/${leadId}/activities`, {
+      method: "POST", headers,
+      body: JSON.stringify({ type: "stage_change", body: `Cambio rápido de etapa → ${stage}` }),
+    }).catch(() => {});
+    fetchLeads();
+  }
+
+  async function handlePipelineChange(pipelineId: string | null) {
+    if (!selectedLead) return;
+    const prevPipelineId = selectedLead.pipelineId;
+    setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, pipelineId: pipelineId ?? null } : l));
+    setSelectedLead((prev) => prev ? { ...prev, pipelineId: pipelineId ?? null, stage: "new" } : null);
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ pipelineId, stage: "new" }) });
+    if (!res.ok) {
+      console.error("PATCH pipeline failed:", res.status, await res.text());
+      alert("Error al cambiar pipeline.");
+      setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, pipelineId: prevPipelineId } : l));
+      setSelectedLead((prev) => prev ? { ...prev, pipelineId: prevPipelineId } : null);
+      return;
+    }
+    fetchLeads(activePipeline?.id);
+  }
+
+  async function handleDeleteLead() {
+    if (!selectedLead) return;
+    const headers = await getAuthHeaders();
+    await fetch(`/api/leads/${selectedLead.id}`, { method: "DELETE", headers });
+    setLeads((prev) => prev.filter((l) => l.id !== selectedLead.id));
+    setOpenDetail(false);
+    setSelectedLead(null);
+  }
+
+  const stages = activePipeline?.stages || STAGES;
+
+  return (
+    <div className="p-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl tracking-tight text-foreground">{t("title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("dragHint")}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={activePipeline?.id || "__all__"}
+            onChange={(e) => {
+              if (e.target.value === "__all__") {
+                setActivePipeline(null);
+              } else {
+                const p = pipelines.find((pl) => pl.id === e.target.value);
+                if (p) setActivePipeline(p);
+              }
+            }}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="__all__">Todos los prospectos</option>
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.category ? `(${p.category})` : ""}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="outline" onClick={() => setShowCreatePipeline(true)} title="Crear pipeline">
+            <Plus className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground ml-2">
+            {leads.length} {leads.length === 1 ? "prospecto" : "prospectos"}
+          </span>
+        </div>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={pointerWithin}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {stages.map((stage) => (
+            <KanbanColumn key={stage} stage={stage} leads={getStageLeads(stage)} onLeadClick={handleLeadClick} onQuickStage={handleQuickStage} />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeLead && (
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
+              <p className="font-semibold text-zinc-900">{activeLead.business?.name ?? "—"}</p>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+
+      <LeadDetailDialog
+        lead={selectedLead}
+        open={openDetail}
+        onOpenChange={setOpenDetail}
+        onStageChange={handleStageChange}
+        onTagsChange={handleTagsChange}
+        onAddNote={() => {}}
+        onDelete={handleDeleteLead}
+        onServiceChange={() => fetchLeads(activePipeline?.id)}
+        categories={categories}
+        onCategoryChange={handleCategoryChange}
+        pipelines={pipelines}
+        activePipelineId={activePipeline?.id}
+        onPipelineChange={handlePipelineChange}
+      />
+
+      <Dialog open={showCreatePipeline} onOpenChange={setShowCreatePipeline}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Crear pipeline</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-500">Nombre</label>
+              <Input
+                placeholder="Ej: Ventas Inbound"
+                value={newPipelineName}
+                onChange={e => setNewPipelineName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-500">Categoría (opcional)</label>
+              <Input
+                placeholder="Ej: Comercial"
+                value={newPipelineCategory}
+                onChange={e => setNewPipelineCategory(e.target.value)}
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={!newPipelineName.trim()}
+              onClick={async () => {
+                const headers = await getAuthHeaders();
+                headers["Content-Type"] = "application/json";
+                const res = await fetch("/api/pipelines", {
+                  method: "POST", headers,
+                  body: JSON.stringify({ name: newPipelineName.trim(), category: newPipelineCategory.trim() || null }),
+                });
+                if (res.ok) {
+                  const p = await res.json();
+                  setPipelines(prev => [...prev, p]);
+                  setActivePipeline(p);
+                  setShowCreatePipeline(false);
+                  setNewPipelineName("");
+                  setNewPipelineCategory("");
+                }
+              }}
+            >
+              Crear pipeline
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
