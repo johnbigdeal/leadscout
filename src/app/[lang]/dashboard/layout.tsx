@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Search, History, LayoutDashboard, Crosshair, ChevronLeft, ChevronRight, DollarSign, Shield, Settings } from "lucide-react";
+import { Search, History, LayoutDashboard, Crosshair, ChevronLeft, ChevronRight, DollarSign, Shield, Settings, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CurrencyProvider, useCurrency } from "@/lib/currency-context";
 
@@ -136,7 +136,19 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           />
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-3 space-y-1">
+          <button
+            onClick={async () => {
+              const supabase = createClient();
+              await supabase.auth.signOut();
+              router.push("/");
+            }}
+            className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground ${collapsed ? "justify-center" : ""}`}
+            title={collapsed ? t("signOut") : undefined}
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>{t("signOut")}</span>}
+          </button>
           {!collapsed && (
             <p className="text-[10px] text-sidebar-foreground/40 text-center">
               Moneda: {currency}
