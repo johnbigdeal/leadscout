@@ -42,6 +42,9 @@ type Filters = {
   inCrm: "all" | "yes" | "no"; nameQuery: string;
 };
 
+type PipelineOption = { id: string; name: string; stages: string[] };
+type CategoryOption = { id: string; name: string; color: string };
+
 const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, inCrm: "all", nameQuery: "" };
 const PER_PAGE_OPTIONS = [25, 50];
 
@@ -87,6 +90,13 @@ export default function ResultsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [perPage, setPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(0);
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addPipelineId, setAddPipelineId] = useState<string>("");
+  const [addCategoryId, setAddCategoryId] = useState<string>("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [batchIds, setBatchIds] = useState<string[]>([]);
 
   const initialLoadRef = useRef(false);
 
@@ -131,21 +141,65 @@ export default function ResultsPage() {
     if (res.ok) setLeadIds(new Set((await res.json()).map((l: { businessId: string }) => l.businessId)));
   }, []);
 
+  const fetchPipelinesAndCategories = useCallback(async () => {
+    const headers = await getAuthHeaders();
+    const [pRes, cRes] = await Promise.all([
+      fetch("/api/pipelines", { headers }),
+      fetch("/api/lead-categories", { headers }),
+    ]);
+    if (pRes.ok) {
+      const pData = await pRes.json();
+      setPipelines(pData);
+      if (pData.length > 0) setAddPipelineId(pData[0].id);
+    }
+    if (cRes.ok) setCategories(await cRes.json());
+  }, []);
+
   useEffect(() => {
     if (initialLoadRef.current) return;
     initialLoadRef.current = true;
+    fetchPipelinesAndCategories();
     const params = new URLSearchParams(window.location.search);
     const id = params.get("searchId");
     if (id) { setSearchId(id); fetchResults(id); fetchLeads(); }
     else { setShowHistory(true); fetchHistory(); }
   }, []);
 
-  async function handleAddToCrm(businessId: string) {
+  async function handleAddToCrm(businessIds: string | string[], opts?: { pipelineId?: string; categoryId?: string }) {
+    const ids = Array.isArray(businessIds) ? businessIds : [businessIds];
+    if (ids.length === 0) return;
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch("/api/leads", { method: "POST", headers, body: JSON.stringify({ businessId }) });
-    setLeadIds((prev) => new Set([...prev, businessId]));
-    setSelected((prev) => prev ? { ...prev, isLead: true } : null);
+    const body: Record<string, unknown> = { businessIds: ids };
+    if (opts?.pipelineId) body.pipelineId = opts.pipelineId;
+    if (opts?.categoryId) body.categoryId = opts.categoryId;
+    await fetch("/api/leads", { method: "POST", headers, body: JSON.stringify(body) });
+    setLeadIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    if (!Array.isArray(businessIds) && selected?.id === businessIds) {
+      setSelected((prev) => prev ? { ...prev, isLead: true } : null);
+    }
+  }
+
+  function openAddDialog(ids?: string[]) {
+    if (ids && ids.length > 0) {
+      setBatchIds(ids);
+    } else {
+      setBatchIds(Array.from(selectedIds).filter((id) => !leadIds.has(id)));
+    }
+    setShowAddDialog(true);
+  }
+
+  async function confirmBatchAdd() {
+    setIsAdding(true);
+    await handleAddToCrm(batchIds, { pipelineId: addPipelineId, categoryId: addCategoryId || undefined });
+    setIsAdding(false);
+    setShowAddDialog(false);
+    setSelectedIds(new Set());
+    setBatchIds([]);
   }
 
   function openCard(biz: Business & { id: string }) {
@@ -361,7 +415,13 @@ export default function ResultsPage() {
               </p>
               <div className="flex items-center gap-3">
                 {selectedIds.size > 0 && (
-                  <span className="text-sm font-medium text-foreground">{selectedIds.size} {t("selected")}</span>
+                  <>
+                    <span className="text-sm font-medium text-foreground">{selectedIds.size} {t("selected")}</span>
+                    <Button size="sm" onClick={() => openAddDialog()} className="h-8">
+                      <Plus className="mr-1.5 h-4 w-4" />
+                      Agregar seleccionados al CRM
+                    </Button>
+                  </>
                 )}
                 <Button variant="outline" size="sm" onClick={handleExport} className="h-8">
                   <Download className="mr-1.5 h-4 w-4" />
@@ -495,7 +555,7 @@ export default function ResultsPage() {
                           <TableCell className="p-3">
                             {!leadIds.has(biz.id) ? (
                               <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/5"
-                                onClick={(e) => { e.stopPropagation(); handleAddToCrm(biz.id); }}>
+                                onClick={(e) => { e.stopPropagation(); openAddDialog([biz.id]); }}>
                                 <Plus className="mr-1 h-3 w-3" />
                                 {t("addToCrm")}
                               </Button>
@@ -542,7 +602,58 @@ export default function ResultsPage() {
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="font-display text-lg">{t("contactInfo")}</DialogTitle>
           </DialogHeader>
-          {selected && <BusinessCard business={selected} onAddToCrm={handleAddToCrm} />}
+          {selected && <BusinessCard business={selected} onAddToCrm={(id) => handleAddToCrm(id)} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch add to CRM dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agregar al CRM</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-600">
+              Vas a agregar <strong>{batchIds.length}</strong> negocio{batchIds.length !== 1 ? "s" : ""} al CRM.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Pipeline
+              </label>
+              <select
+                value={addPipelineId}
+                onChange={(e) => setAddPipelineId(e.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Categoría (opcional)
+              </label>
+              <select
+                value={addCategoryId}
+                onChange={(e) => setAddCategoryId(e.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">Sin categoría</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowAddDialog(false)} disabled={isAdding}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={confirmBatchAdd} disabled={isAdding || batchIds.length === 0}>
+                {isAdding ? "Agregando..." : "Confirmar"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

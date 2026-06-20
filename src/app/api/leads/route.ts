@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const ctx = await auth(request);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { businessId, pipelineId } = await request.json();
+  const { businessId, businessIds, pipelineId, categoryId } = await request.json();
 
   let targetPipelineId = pipelineId;
   if (!targetPipelineId) {
@@ -44,13 +44,21 @@ export async function POST(request: Request) {
     targetPipelineId = defaultPipeline?.id ?? null;
   }
 
-  const [lead] = await db
+  const idsToInsert = businessIds && Array.isArray(businessIds) ? businessIds : [businessId];
+
+  const inserted = await db
     .insert(leads)
-    .values({ orgId: ctx.orgId, businessId, ownerId: ctx.user.id, pipelineId: targetPipelineId })
+    .values(idsToInsert.map((id: string) => ({
+      orgId: ctx!.orgId,
+      businessId: id,
+      ownerId: ctx!.user.id,
+      pipelineId: targetPipelineId,
+      categoryId: categoryId || null,
+    })))
     .onConflictDoNothing()
     .returning();
 
-  return NextResponse.json(lead);
+  return NextResponse.json(inserted);
 }
 
 export async function GET(request: Request) {
