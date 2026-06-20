@@ -24,6 +24,12 @@ type Service = {
   recurrence: string;
 };
 
+type Pipeline = {
+  id: string;
+  name: string;
+  stages: string[];
+};
+
 type MonthlyRevenue = Record<string, number>;
 
 type Stats = {
@@ -53,6 +59,8 @@ const STAGE_LABELS: Record<string, string> = {
   new: "Nuevo",
   contacted: "Contactado",
   qualified: "Calificado",
+  proposal: "Propuesta",
+  negotiation: "Negociación",
   won: "Ganado",
   lost: "Perdido",
 };
@@ -136,6 +144,8 @@ export default function SalesPage() {
   const fmt = useCallback((n: number) => formatCurrency(convertAmount(n), currency), [convertAmount, currency]);
   const [services, setServices] = useState<Service[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>("all");
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [editService, setEditService] = useState<Service | null>(null);
   const [serviceName, setServiceName] = useState("");
@@ -148,19 +158,33 @@ export default function SalesPage() {
     if (res.ok) setServices(await res.json());
   }
 
-  async function fetchStats() {
+  async function fetchPipelines() {
     const headers = await getAuthHeaders();
-    const res = await fetch(`/api/sales/stats?_=${Date.now()}`, { headers, cache: "no-store" });
+    const res = await fetch(`/api/pipelines?_=${Date.now()}`, { headers, cache: "no-store" });
+    if (res.ok) setPipelines(await res.json());
+  }
+
+  async function fetchStats(pipelineId?: string) {
+    const headers = await getAuthHeaders();
+    const url = pipelineId && pipelineId !== "all"
+      ? `/api/sales/stats?pipelineId=${pipelineId}&_=${Date.now()}`
+      : `/api/sales/stats?_=${Date.now()}`;
+    const res = await fetch(url, { headers, cache: "no-store" });
     if (res.ok) setStats(await res.json());
   }
 
   useEffect(() => {
     fetchServices();
+    fetchPipelines();
     fetchStats();
-    const onVisible = () => { if (!document.hidden) { fetchServices(); fetchStats(); } };
+    const onVisible = () => { if (!document.hidden) { fetchServices(); fetchStats(selectedPipelineId); } };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
+
+  useEffect(() => {
+    fetchStats(selectedPipelineId);
+  }, [selectedPipelineId]);
 
   async function saveService() {
     if (!serviceName.trim()) return;
@@ -243,10 +267,22 @@ export default function SalesPage() {
           <h1 className="font-display text-2xl tracking-tight text-foreground">Panel de Ventas</h1>
           <p className="mt-1 text-sm text-muted-foreground">Gestiona servicios y visualiza ingresos</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { fetchServices(); fetchStats(); }}>
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedPipelineId}
+            onChange={(e) => setSelectedPipelineId(e.target.value)}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="all">Todos los pipelines</option>
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <Button variant="outline" size="sm" onClick={() => { fetchServices(); fetchStats(selectedPipelineId); }}>
+            <RefreshCw className="mr-1.5 h-4 w-4" />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
       {/* 3 Donut Charts */}

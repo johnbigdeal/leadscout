@@ -37,10 +37,13 @@ export async function GET(request: Request) {
   const ctx = await auth(request);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const pipelineId = searchParams.get("pipelineId");
+
   const orgLeads = await db
     .select({ id: leads.id, stage: leads.stage, createdAt: leads.createdAt })
     .from(leads)
-    .where(eq(leads.orgId, ctx.orgId));
+    .where(pipelineId ? and(eq(leads.orgId, ctx.orgId), eq(leads.pipelineId, pipelineId)) : eq(leads.orgId, ctx.orgId));
 
   const leadIds = orgLeads.map(l => l.id);
 
