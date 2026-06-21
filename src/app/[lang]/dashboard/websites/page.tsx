@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Globe, ExternalLink, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Globe, ExternalLink, Pencil, Trash2, RefreshCw, EyeOff } from "lucide-react";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -71,6 +71,13 @@ export default function WebsitesPage() {
     fetchWebsites();
   }
 
+  async function unpublishWebsite(id: string) {
+    if (!confirm("¿Despublicar este website? El subdominio dejará de funcionar.")) return;
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/websites/${id}/unpublish`, { method: "POST", headers });
+    if (res.ok) fetchWebsites();
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -126,11 +133,18 @@ export default function WebsitesPage() {
                   Editar
                 </Button>
                 {w.publishedUrl && (
-                  <Button size="sm" variant="outline" className="h-8 text-xs"
-                    onClick={() => window.open(w.publishedUrl!, "_blank")}>
-                    <ExternalLink className="mr-1 h-3 w-3" />
-                    Ver
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" className="h-8 text-xs"
+                      onClick={() => window.open(w.publishedUrl!, "_blank")}>
+                      <ExternalLink className="mr-1 h-3 w-3" />
+                      Ver
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs text-amber-600 border-amber-200 hover:bg-amber-50"
+                      onClick={() => unpublishWebsite(w.id)}>
+                      <EyeOff className="mr-1 h-3 w-3" />
+                      Despublicar
+                    </Button>
+                  </>
                 )}
                 <button
                   onClick={() => deleteWebsite(w.id)}

@@ -29,7 +29,9 @@ export default function BuilderPage() {
   const [showPublish, setShowPublish] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+  const [subdomain, setSubdomain] = useState("");
   const [builderData, setBuilderData] = useState<any>(null);
+  const mainDomain = "leadscout.lat";
 
   async function fetchWebsite() {
     const headers = await getAuthHeaders();
@@ -70,15 +72,34 @@ export default function BuilderPage() {
   }, [builderData]);
 
   async function handlePublish() {
+    if (!subdomain.trim()) return;
     setPublishing(true);
     const headers = await getAuthHeaders();
-    const res = await fetch(`/api/websites/${websiteId}/publish`, { method: "POST", headers });
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/websites/${websiteId}/publish`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ subdomain: subdomain.trim() }),
+    });
     if (res.ok) {
       const data = await res.json();
       setPublishedUrl(data.url);
       setShowPublish(false);
+    } else {
+      const err = await res.json();
+      alert(err.error || "Error al publicar");
     }
     setPublishing(false);
+  }
+
+  function generateSubdomain() {
+    const data = builderData || website?.data || {};
+    const name = data.businessName || website?.name || "site";
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 62);
   }
 
   if (loading) {
@@ -136,7 +157,12 @@ export default function BuilderPage() {
       </div>
 
       {/* Publish dialog */}
-      <Dialog open={showPublish} onOpenChange={setShowPublish}>
+      <Dialog open={showPublish} onOpenChange={(open) => {
+        setShowPublish(open);
+        if (open && !subdomain) {
+          setSubdomain(generateSubdomain());
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Publicar Website</DialogTitle>
@@ -152,20 +178,32 @@ export default function BuilderPage() {
             ) : (
               <>
                 <p className="text-sm text-zinc-600">
-                  Al publicar, tu landing page quedará disponible en el dominio asignado.
+                  Elegí el subdominio para tu landing page:
                 </p>
-                {website.domain && (
-                  <p className="text-sm font-medium text-zinc-900">
-                    Dominio: {website.domain}
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Subdominio
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={subdomain}
+                      onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      placeholder="mi-negocio"
+                      className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <span className="text-sm text-zinc-500">.{mainDomain}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Solo letras, números y guiones. Ej: estudio-lumen
                   </p>
-                )}
+                </div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => setShowPublish(false)}>
                     Cancelar
                   </Button>
-                  <Button className="flex-1" onClick={handlePublish} disabled={publishing}>
+                  <Button className="flex-1" onClick={handlePublish} disabled={publishing || !subdomain.trim()}>
                     {publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Confirmar
+                    Publicar
                   </Button>
                 </div>
               </>

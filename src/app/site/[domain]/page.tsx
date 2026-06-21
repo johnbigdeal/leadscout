@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { websites, customDomains } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
+import { generateHTML } from "@/lib/paralux/generate-html";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +42,12 @@ export default async function SitePage({ params }: { params: Promise<{ domain: s
     .where(eq(websites.id, websiteId))
     .limit(1);
 
-  if (!site || !site.html) return notFound();
+  if (!site) return notFound();
+
+  /* Generate HTML dynamically from JSON data */
+  const html = generateHTML(site.data as Record<string, any>);
 
   return (
-    <div dangerouslySetInnerHTML={{ __html: site.html }} />
+    <div dangerouslySetInnerHTML={{ __html: html }} />
   );
 }
