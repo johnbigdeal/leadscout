@@ -11,14 +11,19 @@ export async function middleware(request: NextRequest) {
   const mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "");
 
   /* Redirect www to non-www */
-  if (host === `www.${mainDomain}`) {
+  if (mainDomain && host === `www.${mainDomain}`) {
     const url = request.nextUrl.clone();
     url.host = mainDomain;
     return NextResponse.redirect(url, 301);
   }
 
-  /* Custom domain detection (not main domain, not localhost, not vercel) */
-  if (mainDomain && host !== mainDomain && !host.includes("localhost") && !host.includes("vercel.app")) {
+  /* Custom domain detection */
+  /* Allow: any domain that is NOT the main domain, localhost, or vercel preview */
+  const isMainDomain = mainDomain ? host === mainDomain || host.endsWith(`.${mainDomain}`) : false;
+  const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
+  const isVercelPreview = host.includes("vercel.app");
+
+  if (mainDomain && !isMainDomain && !isLocalhost && !isVercelPreview) {
     const url = request.nextUrl.clone();
     url.pathname = `/site/${host}`;
     return NextResponse.rewrite(url);

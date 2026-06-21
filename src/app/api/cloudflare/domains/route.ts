@@ -92,13 +92,19 @@ export async function POST(request: Request) {
     }
 
     /* Create DNS record in Cloudflare */
-    const target = process.env.NEXT_PUBLIC_APP_URL || "cname.vercel-dns.com";
+    /* For proxied CNAME, target should be the Vercel CNAME */
+    const appHost = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "");
+    /* If the main domain is apex (leadscout.lat), we should use cname.vercel-dns.com as target */
+    /* If it's a subdomain, point to the main domain */
+    const isApexDomain = !rootDomain.includes(".");
+    const target = isApexDomain ? "cname.vercel-dns.com" : (appHost || "cname.vercel-dns.com");
+    
     const record = await cfRequest(token, `/zones/${zoneId}/dns_records`, {
       method: "POST",
       body: JSON.stringify({
         type: "CNAME",
         name: subdomain,
-        content: target.replace(/^https?:\/\//, ""),
+        content: target,
         ttl: 1, /* Auto */
         proxied: true,
       }),
@@ -116,7 +122,7 @@ export async function POST(request: Request) {
         zoneId,
         dnsRecordId: record.id,
         recordType: "CNAME",
-        target: target.replace(/^https?:\/\//, ""),
+        target,
         status: "pending",
       })
       .returning();
