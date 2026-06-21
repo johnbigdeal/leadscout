@@ -18,12 +18,20 @@ export async function middleware(request: NextRequest) {
   }
 
   /* Custom domain detection */
-  /* Allow: any domain that is NOT the main domain, localhost, or vercel preview */
-  const isMainDomain = mainDomain ? host === mainDomain || host.endsWith(`.${mainDomain}`) : false;
+  const isMainDomain = mainDomain ? host === mainDomain : false;
+  const isMainSubdomain = mainDomain ? host.endsWith(`.${mainDomain}`) : false;
   const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
   const isVercelPreview = host.includes("vercel.app");
 
-  if (mainDomain && !isMainDomain && !isLocalhost && !isVercelPreview) {
+  /* If it's a subdomain of the main domain (e.g. pedro.leadscout.lat), rewrite to site page */
+  if (mainDomain && isMainSubdomain && !isMainDomain && !isLocalhost && !isVercelPreview) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/site/${host}`;
+    return NextResponse.rewrite(url);
+  }
+
+  /* If it's any other custom domain, also rewrite */
+  if (mainDomain && !isMainDomain && !isMainSubdomain && !isLocalhost && !isVercelPreview) {
     const url = request.nextUrl.clone();
     url.pathname = `/site/${host}`;
     return NextResponse.rewrite(url);
