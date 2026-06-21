@@ -10,7 +10,14 @@ export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") || "";
   const mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "");
 
-  /* Custom domain detection */
+  /* Redirect www to non-www */
+  if (host === `www.${mainDomain}`) {
+    const url = request.nextUrl.clone();
+    url.host = mainDomain;
+    return NextResponse.redirect(url, 301);
+  }
+
+  /* Custom domain detection (not main domain, not localhost, not vercel) */
   if (mainDomain && host !== mainDomain && !host.includes("localhost") && !host.includes("vercel.app")) {
     const url = request.nextUrl.clone();
     url.pathname = `/site/${host}`;
