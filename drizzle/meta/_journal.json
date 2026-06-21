@@ -43,6 +43,13 @@
       "when": 1781984575875,
       "tag": "0005_lyrical_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782004849094,
+      "tag": "0006_conscious_grandmaster",
+      "breakpoints": true
     }
   ]
 }

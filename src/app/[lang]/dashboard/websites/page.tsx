@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Plus, Globe, ExternalLink, Pencil, Trash2, RefreshCw } from "lucide-react";
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  return headers;
+}
+
+type Website = {
+  id: string;
+  name: string;
+  status: string;
+  subdomain: string | null;
+  domain: string | null;
+  publishedUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export default function WebsitesPage() {
+  const router = useRouter();
+  const [websites, setWebsites] = useState<Website[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  async function fetchWebsites() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/websites", { headers });
+    if (res.ok) setWebsites(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchWebsites();
+  }, []);
+
+  async function createWebsite() {
+    if (!newName.trim()) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/websites", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (res.ok) {
+      const website = await res.json();
+      setShowNewDialog(false);
+      setNewName("");
+      router.push(`/dashboard/builder/${website.id}`);
+    }
+  }
+
+  async function deleteWebsite(id: string) {
+    if (!confirm("¿Eliminar este website?")) return;
+    const headers = await getAuthHeaders();
+    await fetch(`/api/websites/${id}`, { method: "DELETE", headers });
+    fetchWebsites();
+  }
+
+  return (
+    <div className="p-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl tracking-tight text-foreground">Websites</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Landing pages creadas con el builder</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchWebsites}>
+            <RefreshCw className="mr-1.5 h-4 w-4" />
+            Actualizar
+          </Button>
+          <Button size="sm" onClick={() => setShowNewDialog(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Nuevo Website
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      ) : websites.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <Globe className="h-12 w-12 text-zinc-300" />
+          <p className="text-muted-foreground">No hay websites todavía</p>
+          <Button size="sm" onClick={() => setShowNewDialog(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Crear el primero
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {websites.map((w) => (
+            <div key={w.id} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-zinc-900">{w.name}</h3>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {w.domain || "Sin dominio asignado"}
+                  </p>
+                </div>
+                <Badge variant={w.status === "published" ? "default" : "secondary"} className="text-[10px]">
+                  {w.status === "published" ? "Publicado" : "Borrador"}
+                </Badge>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-8 text-xs"
+                  onClick={() => router.push(`/dashboard/builder/${w.id}`)}>
+                  <Pencil className="mr-1 h-3 w-3" />
+                  Editar
+                </Button>
+                {w.publishedUrl && (
+                  <Button size="sm" variant="outline" className="h-8 text-xs"
+                    onClick={() => window.open(w.publishedUrl!, "_blank")}>
+                    <ExternalLink className="mr-1 h-3 w-3" />
+                    Ver
+                  </Button>
+                )}
+                <button
+                  onClick={() => deleteWebsite(w.id)}
+                  className="ml-auto rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo Website</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Nombre
+              </label>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="ej. Landing Pedro Barber"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowNewDialog(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={createWebsite} disabled={!newName.trim()}>
+                Crear
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

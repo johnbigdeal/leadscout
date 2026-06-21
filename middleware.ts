@@ -7,6 +7,15 @@ const intlMiddleware = createMiddleware(routing);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const host = request.headers.get("host") || "";
+  const mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "");
+
+  /* Custom domain detection */
+  if (mainDomain && host !== mainDomain && !host.includes("localhost") && !host.includes("vercel.app")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/site/${host}`;
+    return NextResponse.rewrite(url);
+  }
 
   const langPrefix = pathname.startsWith("/es") || pathname.startsWith("/pt-BR");
   const isApi = pathname.startsWith("/api");

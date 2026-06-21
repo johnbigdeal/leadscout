@@ -246,3 +246,52 @@ export const searchShares = pgTable("search_shares", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const websites = pgTable("websites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  businessId: uuid("business_id").references(() => businesses.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  data: jsonb("data").notNull().default({}),
+  html: text("html"),
+  status: text("status").notNull().default("draft"),
+  subdomain: text("subdomain").unique(),
+  domain: text("domain"),
+  publishedUrl: text("published_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cloudflareAccounts = pgTable("cloudflare_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  apiToken: text("api_token").notNull(),
+  email: text("email"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgUnique: uniqueIndex().on(t.orgId),
+}));
+
+export const customDomains = pgTable("custom_domains", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  websiteId: uuid("website_id").references(() => websites.id, { onDelete: "cascade" }),
+  domain: text("domain").notNull(),
+  rootDomain: text("root_domain").notNull(),
+  subdomain: text("subdomain").notNull(),
+  zoneId: text("zone_id").notNull(),
+  dnsRecordId: text("dns_record_id"),
+  recordType: text("record_type").notNull().default("CNAME"),
+  target: text("target").notNull().default("cname.vercel-dns.com"),
+  status: text("status").notNull().default("pending"),
+  sslStatus: text("ssl_status"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

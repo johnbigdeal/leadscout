@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History } from "lucide-react";
+import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink } from "lucide-react";
 import { BusinessCard, type Business } from "@/components/business-card";
 
 function InstagramIcon({ className }: { className?: string }) {
@@ -164,6 +164,20 @@ export default function ResultsPage() {
     if (id) { setSearchId(id); fetchResults(id); fetchLeads(); }
     else { setShowHistory(true); fetchHistory(); }
   }, []);
+
+  async function createWebsiteFromBiz(businessId: string, businessName: string) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/websites", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: `Website ${businessName}`, businessId }),
+    });
+    if (res.ok) {
+      const website = await res.json();
+      router.push(`/dashboard/builder/${website.id}`);
+    }
+  }
 
   async function handleAddToCrm(businessIds: string | string[], opts?: { pipelineId?: string; categoryId?: string }) {
     const ids = Array.isArray(businessIds) ? businessIds : [businessIds];
@@ -553,17 +567,24 @@ export default function ResultsPage() {
                             ) : <span className="text-zinc-300">—</span>}
                           </TableCell>
                           <TableCell className="p-3">
-                            {!leadIds.has(biz.id) ? (
-                              <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/5"
-                                onClick={(e) => { e.stopPropagation(); openAddDialog([biz.id]); }}>
-                                <Plus className="mr-1 h-3 w-3" />
-                                {t("addToCrm")}
+                            <div className="flex items-center gap-1.5">
+                              {!leadIds.has(biz.id) ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/5"
+                                  onClick={(e) => { e.stopPropagation(); openAddDialog([biz.id]); }}>
+                                  <Plus className="mr-1 h-3 w-3" />
+                                  {t("addToCrm")}
+                                </Button>
+                              ) : (
+                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+                                  {t("addedToCrm")}
+                                </Badge>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-500 hover:text-zinc-900"
+                                onClick={(e) => { e.stopPropagation(); createWebsiteFromBiz(biz.id, biz.name); }}>
+                                <Globe className="mr-1 h-3 w-3" />
+                                Website
                               </Button>
-                            ) : (
-                              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
-                                {t("addedToCrm")}
-                              </Badge>
-                            )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

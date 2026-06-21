@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Settings, DollarSign, GitBranch, Shield, CheckCircle, XCircle, User, Pencil, X, Check } from "lucide-react";
+import { Settings, DollarSign, GitBranch, Shield, CheckCircle, XCircle, User, Pencil, X, Check, Globe, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
 
@@ -121,6 +121,19 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6 max-w-xl">
+        <a href="/dashboard/settings/domains" className="block rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-zinc-500" />
+              <h2 className="font-semibold">Dominios</h2>
+            </div>
+            <ChevronRight className="h-5 w-5 text-zinc-400" />
+          </div>
+          <p className="mt-2 text-sm text-zinc-500">
+            Conectá Cloudflare y gestioná dominios personalizados para tus websites.
+          </p>
+        </a>
+
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-zinc-500" />

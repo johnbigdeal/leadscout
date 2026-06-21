@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Search, History, LayoutDashboard, Crosshair, ChevronLeft, ChevronRight, DollarSign, Shield, Settings, LogOut } from "lucide-react";
+import { Search, History, LayoutDashboard, Crosshair, ChevronLeft, ChevronRight, DollarSign, Shield, Settings, LogOut, Globe } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CurrencyProvider, useCurrency } from "@/lib/currency-context";
 
@@ -118,6 +118,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             href="/dashboard/sales"
             icon={<DollarSign className="h-4 w-4" />}
             label={t("sales")}
+            collapsed={collapsed}
+          />
+          <NavItem
+            href="/dashboard/websites"
+            icon={<Globe className="h-4 w-4" />}
+            label="Websites"
             collapsed={collapsed}
           />
           {isAdmin && (
