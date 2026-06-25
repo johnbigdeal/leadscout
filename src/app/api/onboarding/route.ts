@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { organizations, memberships, subscriptions, pipelines } from "@/lib/db/schema";
+import { organizations, memberships, subscriptions, pipelines, profiles } from "@/lib/db/schema";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  // Rate limit by IP - 5 requests per minute
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limit = rateLimit(`onboarding:${ip}`, { maxRequests: 5, windowMs: 60_000 });
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: "Demasiados intentos. Por favor espera unos minutos." },
+      { status: 429 },
+    );
+  }
+
   const { userId, orgName } = await request.json();
   if (!userId || !orgName) {
     return NextResponse.json({ error: "Missing userId or orgName" }, { status: 400 });
@@ -21,6 +32,12 @@ export async function POST(request: Request) {
     .insert(organizations)
     .values({ name: orgName })
     .returning();
+
+  await db.insert(profiles).values({
+    id: userId,
+    email: user.email!,
+    role: isSuperAdmin ? "super_admin" : "user",
+  }).onConflictDoNothing();
 
   await db.insert(memberships).values({
     orgId: org.id,

@@ -1,32 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leads, memberships, activities } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-);
-
-async function auth(request: Request) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
-  if (!user) return null;
-
-  const [membership] = await db
-    .select({ orgId: memberships.orgId })
-    .from(memberships)
-    .where(eq(memberships.userId, user.id))
-    .limit(1);
-  if (!membership) return null;
-
-  return { user, orgId: membership.orgId };
-}
 
 // GET list activities for a lead
 export async function GET(
@@ -34,8 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const ctx = await auth(request);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const result = await requireAuth(request);
+  if (result.response) return result.response;
+  const ctx = result.ctx;
 
   const [lead] = await db
     .select({ leadId: leads.id })
@@ -58,8 +37,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const ctx = await auth(request);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const result = await requireAuth(request);
+  if (result.response) return result.response;
+  const ctx = result.ctx;
 
   const [lead] = await db
     .select({ leadId: leads.id })

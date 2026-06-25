@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -33,7 +34,9 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
 import { BusinessCard } from "@/components/business-card";
-import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign } from "lucide-react";
+import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign, Crown } from "lucide-react";
+import { UpgradeModal } from "@/components/upgrade-modal";
+import { FreeBadge } from "@/components/plan-badges";
 
 type Business = {
   id: string;
@@ -242,7 +245,7 @@ type LeadService = {
 };
 
 function LeadDetailDialog({
-  lead, open, onOpenChange, onStageChange, onTagsChange, onAddNote, onDelete, onServiceChange, categories, onCategoryChange, pipelines, activePipelineId, onPipelineChange,
+  lead, open, onOpenChange, onStageChange, onTagsChange, onAddNote, onDelete, onServiceChange, categories, onCategoryChange, pipelines, activePipelineId, onPipelineChange, onCreateWebsite, plan, onShowUpgrade,
 }: {
   lead: Lead | null;
   open: boolean;
@@ -257,6 +260,9 @@ function LeadDetailDialog({
   pipelines: Pipeline[];
   activePipelineId: string | null | undefined;
   onPipelineChange: (pipelineId: string | null) => void;
+  onCreateWebsite?: (leadId: string, businessId?: string) => void;
+  plan: string;
+  onShowUpgrade: (feature: string) => void;
 }) {
   const t = useTranslations("crm");
   const { currency, convertAmount } = useCurrency();
@@ -385,14 +391,26 @@ function LeadDetailDialog({
       <DialogContent className="!top-[3%] !-translate-y-0 !max-h-[94vh] max-w-2xl flex flex-col">
         <div className="flex flex-col h-full">
           <DialogHeader className="shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                <User className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="font-display text-lg">{lead.business?.name ?? "—"}</DialogTitle>
+                  <DialogDescription>{t("createdAt")}: {formatDate(lead.createdAt)}</DialogDescription>
+                </div>
               </div>
-              <div>
-                <DialogTitle className="font-display text-lg">{lead.business?.name ?? "—"}</DialogTitle>
-                <DialogDescription>{t("createdAt")}: {formatDate(lead.createdAt)}</DialogDescription>
-              </div>
+              {onCreateWebsite && lead?.id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
+                >
+                  <Globe className="mr-1.5 h-4 w-4" />
+                  Crear Website
+                </Button>
+              )}
             </div>
           </DialogHeader>
 
@@ -533,7 +551,13 @@ function LeadDetailDialog({
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                <Button size="sm" variant="outline" onClick={() => setShowNewCategory(!showNewCategory)}>
+                <Button size="sm" variant="outline" onClick={() => {
+                  if (plan === "free" && categories.length >= 3) {
+                    onShowUpgrade("Categorías ilimitadas");
+                    return;
+                  }
+                  setShowNewCategory(!showNewCategory);
+                }}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -569,6 +593,9 @@ function LeadDetailDialog({
                           setShowNewCategory(false);
                           setNewCategoryName("");
                           setNewCategoryColor("#0369A1");
+                        } else if (res.status === 403) {
+                          setShowNewCategory(false);
+                          onShowUpgrade("Categorías ilimitadas");
                         }
                       }}
                     >
@@ -673,6 +700,7 @@ type Pipeline = {
 };
 
 export default function CrmPage() {
+  const router = useRouter();
   const t = useTranslations("crm");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
@@ -686,6 +714,9 @@ export default function CrmPage() {
   const [showCreatePipeline, setShowCreatePipeline] = useState(false);
   const [newPipelineName, setNewPipelineName] = useState("");
   const [newPipelineCategory, setNewPipelineCategory] = useState("");
+  const [plan, setPlan] = useState<string>("free");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState("Pipelines ilimitados");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -713,7 +744,16 @@ export default function CrmPage() {
     if (res.ok) setLeads(await res.json());
   }, []);
 
-  useEffect(() => { fetchPipelines(); fetchCategories(); }, []);
+  async function fetchPlan() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/billing/plans", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setPlan(data.currentPlan || "free");
+    }
+  }
+
+  useEffect(() => { fetchPipelines(); fetchCategories(); fetchPlan(); }, []);
   useEffect(() => { fetchLeads(activePipeline?.id); }, [activePipeline, fetchLeads]);
 
   function getStageLeads(stage: string) {
@@ -814,11 +854,22 @@ export default function CrmPage() {
 
   async function handleTagsChange(tags: string[]) {
     if (!selectedLead) return;
+    if (plan === "free" && tags.length > 3) {
+      setUpgradeFeature("Etiquetas ilimitadas");
+      setShowUpgradeModal(true);
+      return;
+    }
     setSelectedLead((prev) => prev ? { ...prev, tags } : null);
     setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, tags } : l));
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ tags }) });
+    const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ tags }) });
+    if (res.status === 403) {
+      setUpgradeFeature("Etiquetas ilimitadas");
+      setShowUpgradeModal(true);
+      /* Revert local state */
+      fetchLeads(activePipeline?.id);
+    }
   }
 
   async function handleCategoryChange(categoryId: string | null) {
@@ -879,6 +930,27 @@ export default function CrmPage() {
     setSelectedLead(null);
   }
 
+  async function handleCreateWebsite(leadId: string, businessId?: string) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/websites", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: `Website ${selectedLead?.business?.name || "Nuevo"}`,
+        leadId,
+        businessId,
+      }),
+    });
+    if (res.ok) {
+      const website = await res.json();
+      router.push(`/dashboard/builder/${website.id}`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Error al crear website");
+    }
+  }
+
   const stages = activePipeline?.stages || STAGES;
 
   return (
@@ -908,7 +980,14 @@ export default function CrmPage() {
               </option>
             ))}
           </select>
-          <Button size="sm" variant="outline" onClick={() => setShowCreatePipeline(true)} title="Crear pipeline">
+          <Button size="sm" variant="outline" onClick={() => {
+            if (plan === "free" && pipelines.length >= 1) {
+              setUpgradeFeature("Pipelines ilimitados");
+              setShowUpgradeModal(true);
+              return;
+            }
+            setShowCreatePipeline(true);
+          }} title="Crear pipeline">
             <Plus className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground ml-2">
@@ -952,6 +1031,9 @@ export default function CrmPage() {
         pipelines={pipelines}
         activePipelineId={activePipeline?.id}
         onPipelineChange={handlePipelineChange}
+        onCreateWebsite={handleCreateWebsite}
+        plan={plan}
+        onShowUpgrade={(feature) => { setUpgradeFeature(feature); setShowUpgradeModal(true); }}
       />
 
       <Dialog open={showCreatePipeline} onOpenChange={setShowCreatePipeline}>
@@ -960,6 +1042,15 @@ export default function CrmPage() {
             <DialogTitle>Crear pipeline</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {plan === "free" && pipelines.length >= 1 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="flex items-center gap-2 mb-1">
+                  <FreeBadge>Free</FreeBadge>
+                  <span className="font-semibold">Límite alcanzado (1/1)</span>
+                </div>
+                <p>Upgrade a Pro para crear pipelines ilimitados.</p>
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-500">Nombre</label>
               <Input
@@ -978,7 +1069,7 @@ export default function CrmPage() {
             </div>
             <Button
               className="w-full"
-              disabled={!newPipelineName.trim()}
+              disabled={!newPipelineName.trim() || (plan === "free" && pipelines.length >= 1)}
               onClick={async () => {
                 const headers = await getAuthHeaders();
                 headers["Content-Type"] = "application/json";
@@ -993,6 +1084,15 @@ export default function CrmPage() {
                   setShowCreatePipeline(false);
                   setNewPipelineName("");
                   setNewPipelineCategory("");
+                } else {
+                  const err = await res.json();
+                  if (res.status === 403) {
+                    setShowCreatePipeline(false);
+                    setUpgradeFeature("Pipelines ilimitados");
+                    setShowUpgradeModal(true);
+                  } else {
+                    alert(err.error || "Error al crear pipeline");
+                  }
                 }
               }}
             >
@@ -1001,6 +1101,8 @@ export default function CrmPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} feature={upgradeFeature} />
     </div>
   );
 }

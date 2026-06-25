@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Sparkles, Download, Monitor, Smartphone, MessageCircle, Plus,
-  Trash2, Check, Copy, Loader2, X, Layers, Palette, Type, FileText, Phone
+  Sparkles, Globe, Monitor, Smartphone, MessageCircle, Plus,
+  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
 
@@ -66,18 +66,15 @@ const DEFAULT = {
     { title: "Consultoría", desc: "Acompañamiento y dirección creativa para tu obra, remodelación o nuevo espacio." },
   ],
   galleryTitle: "Proyectos recientes",
-  gallery: [
-    "https://picsum.photos/seed/lumeng1/900/1100",
-    "https://picsum.photos/seed/lumeng2/900/1100",
-    "https://picsum.photos/seed/lumeng3/900/1100",
-    "https://picsum.photos/seed/lumeng4/900/1100",
-    "https://picsum.photos/seed/lumeng5/900/1100",
-    "https://picsum.photos/seed/lumeng6/900/1100",
-  ],
+  gallery: [],
   ctaTitle: "Cuéntanos sobre tu proyecto",
   ctaSubtext: "Respondemos rápido. Escríbenos y agendemos una conversación sin compromiso.",
+  contactCtaText: "Escribir por WhatsApp",
+  whatsappEnabled: true,
   whatsappNumber: "521234567890",
   whatsappMessage: "Hola Estudio Lumen, vi su sitio y me gustaría una cotización.",
+  whatsappPosition: "right",
+  whatsappSize: "normal",
   email: "hola@estudiolumen.com",
   phone: "+52 123 456 7890",
   location: "Ciudad de México",
@@ -97,7 +94,7 @@ const BUILDER_CSS = `
   --ink:#141319;--ink-2:#1B1A22;--ink-3:#26252F;--line:#302E3B;
   --paper:#F6F5F2;--hi:#F4F3F7;--lo:#9B98A8;--accent:#4B4BFF;--ok:#2BB673;
 }
-.px-app{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--ink);
+.px-app{position:relative;width:100%;height:100%;display:flex;flex-direction:column;background:var(--ink);
   color:var(--hi);font-family:'Inter',system-ui,sans-serif;overflow:hidden}
 .px-app *{box-sizing:border-box}
 .px-top{height:56px;flex:0 0 56px;display:flex;align-items:center;justify-content:space-between;
@@ -201,16 +198,15 @@ const TABS = [
   { id: "imagenes", label: "Imágenes", icon: Layers },
   { id: "estilo", label: "Estilo", icon: Palette },
   { id: "contacto", label: "Contacto", icon: Phone },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
 
-export default function ParaluxBuilder({ initialData, onChange }) {
+export default function ParaluxBuilder({ initialData, onChange, device, onDeviceChange, showAI, onShowAIChange }) {
   const [d, setD] = useState({ ...DEFAULT, ...(initialData || {}) });
   const [tab, setTab] = useState("contenido");
-  const [device, setDevice] = useState("desktop");
   const [preview, setPreview] = useState("");
-  const [showAI, setShowAI] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const internalDevice = device || "desktop";
+  const internalShowAI = showAI || false;
 
   const set = (k, v) => setD((o) => ({ ...o, [k]: v }));
 
@@ -235,27 +231,9 @@ export default function ParaluxBuilder({ initialData, onChange }) {
   const delGallery = (i) => set("gallery", d.gallery.filter((_, idx) => idx !== i));
 
   const frameSize =
-    device === "desktop"
+    internalDevice === "desktop"
       ? { width: "min(100%, 1180px)", height: "100%" }
       : { width: "390px", height: "min(100%, 760px)" };
-
-  const download = () => {
-    const blob = new Blob([generateHTML(d)], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "index.html";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(generateHTML(d));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch (e) { /* ignore */ }
-  };
 
   return (
     <>
@@ -266,32 +244,6 @@ export default function ParaluxBuilder({ initialData, onChange }) {
       />
 
       <div className="px-app">
-        {/* top bar */}
-        <div className="px-top">
-          <div className="px-logo">
-            <span className="dot" />
-            Paralux <small>landing builder</small>
-          </div>
-
-          <div className="px-seg">
-            <button className={device === "desktop" ? "on" : ""} onClick={() => setDevice("desktop")}>
-              <Monitor size={15} /> Escritorio
-            </button>
-            <button className={device === "mobile" ? "on" : ""} onClick={() => setDevice("mobile")}>
-              <Smartphone size={15} /> Móvil
-            </button>
-          </div>
-
-          <div className="px-actions">
-            <button className="px-btn px-btn--ai" onClick={() => setShowAI(true)}>
-              <Sparkles size={15} /> Generar con IA
-            </button>
-            <button className="px-btn" onClick={() => setShowExport(true)}>
-              <Download size={15} /> Exportar
-            </button>
-          </div>
-        </div>
-
         <div className="px-body">
           {/* control panel */}
           <div className="px-panel">
@@ -339,14 +291,29 @@ export default function ParaluxBuilder({ initialData, onChange }) {
                   <div className="px-sub" style={{ marginTop: 22 }}>Llamado final</div>
                   <Field label="Título" v={d.ctaTitle} on={(v) => set("ctaTitle", v)} />
                   <Field label="Subtítulo" v={d.ctaSubtext} on={(v) => set("ctaSubtext", v)} area />
+                  <Field label="Texto del botón (CTA)" v={d.contactCtaText} on={(v) => set("contactCtaText", v)} ph="Escribir por WhatsApp" />
                 </>
               )}
 
               {tab === "imagenes" && (
                 <>
-                  <p className="px-hint" style={{ marginBottom: 18 }}>
-                    Subí imágenes o pegá URLs. Las imágenes se suben a tu almacenamiento.
-                  </p>
+                  <UnsplashSearch
+                    defaultQuery={d.businessName || d.tagline || "business"}
+                    onSelect={(url, target) => {
+                      if (target === "hero") set("heroImage", url);
+                      else if (target === "about") set("aboutImage", url);
+                      else if (target === "stmt") set("stmtImage", url);
+                      else if (target === "gallery") set("gallery", [...(d.gallery || []), url]);
+                      else {
+                        if (!d.heroImage) set("heroImage", url);
+                        else if (!d.aboutImage) set("aboutImage", url);
+                        else if (!d.stmtImage) set("stmtImage", url);
+                        else set("gallery", [...(d.gallery || []), url]);
+                      }
+                    }}
+                  />
+
+                  <div className="px-sub" style={{ marginTop: 22 }}>Imágenes actuales</div>
                   <ImageField label="Imagen del hero (fondo)" value={d.heroImage} onChange={(v) => set("heroImage", v)} />
                   <ImageField label="Imagen de «Nosotros»" value={d.aboutImage} onChange={(v) => set("aboutImage", v)} hint="Déjalo vacío para ocultar la imagen." />
                   <ImageField label="Imagen de la frase (parallax)" value={d.stmtImage} onChange={(v) => set("stmtImage", v)} />
@@ -403,17 +370,7 @@ export default function ParaluxBuilder({ initialData, onChange }) {
 
               {tab === "contacto" && (
                 <>
-                  <div className="px-sub" style={{ marginTop: 0 }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <MessageCircle size={15} color="#25D366" /> WhatsApp
-                    </span>
-                  </div>
-                  <Field label="Número (con código de país)" v={d.whatsappNumber} on={(v) => set("whatsappNumber", v)} ph="521234567890"
-                    hint="Solo dígitos, formato internacional. Ej: 52 = México, 57 = Colombia, 34 = España. Vacío = sin botón de WhatsApp." />
-                  <Field label="Mensaje pre-cargado" v={d.whatsappMessage} on={(v) => set("whatsappMessage", v)} area
-                    hint="Texto que el visitante verá ya escrito al abrir el chat." />
-
-                  <div className="px-sub">Datos de contacto</div>
+                  <div className="px-sub" style={{ marginTop: 0 }}>Datos de contacto</div>
                   <Field label="Correo" v={d.email} on={(v) => set("email", v)} ph="hola@..." />
                   <Field label="Teléfono visible" v={d.phone} on={(v) => set("phone", v)} ph="+52 ..." />
                   <Field label="Ubicación" v={d.location} on={(v) => set("location", v)} ph="Ciudad de México" />
@@ -422,6 +379,73 @@ export default function ParaluxBuilder({ initialData, onChange }) {
                   <Field label="Instagram (URL)" v={d.instagram} on={(v) => set("instagram", v)} ph="https://instagram.com/..." />
                   <Field label="Facebook (URL)" v={d.facebook} on={(v) => set("facebook", v)} ph="https://facebook.com/..." />
                   <Field label="Sitio web (URL)" v={d.website} on={(v) => set("website", v)} ph="https://..." />
+                </>
+              )}
+
+              {tab === "whatsapp" && (
+                <>
+                  <div className="px-field">
+                    <span className="px-label">Mostrar botón flotante</span>
+                    <div className="px-toggle">
+                      <span style={{ fontSize: ".88rem" }}>{d.whatsappEnabled ? "Activado" : "Desactivado"}</span>
+                      <div className={`px-switch ${d.whatsappEnabled ? "on" : ""}`} onClick={() => set("whatsappEnabled", !d.whatsappEnabled)}><i /></div>
+                    </div>
+                  </div>
+
+                  {d.whatsappEnabled && (
+                    <>
+                      <Field label="Número de teléfono" v={d.whatsappNumber} on={(v) => set("whatsappNumber", v)} ph="521234567890"
+                        hint="Solo dígitos, formato internacional. Ej: 52 = México, 57 = Colombia, 34 = España." />
+                      <Field label="Mensaje pre-cargado" v={d.whatsappMessage} on={(v) => set("whatsappMessage", v)} area
+                        hint="Texto que el visitante verá ya escrito al abrir el chat." />
+
+                      <div className="px-field">
+                        <span className="px-label">Posición</span>
+                        <div className="px-presets">
+                          {[
+                            { k: "right", label: "Derecha" },
+                            { k: "left", label: "Izquierda" },
+                            { k: "center", label: "Centro abajo" },
+                          ].map((p) => (
+                            <div key={p.k} className={`px-preset ${d.whatsappPosition === p.k ? "on" : ""}`} onClick={() => set("whatsappPosition", p.k)}>
+                              <span>{p.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="px-field">
+                        <span className="px-label">Tamaño</span>
+                        <div className="px-presets">
+                          {[
+                            { k: "normal", label: "Normal" },
+                            { k: "large", label: "Grande" },
+                          ].map((s) => (
+                            <div key={s.k} className={`px-preset ${d.whatsappSize === s.k ? "on" : ""}`} onClick={() => set("whatsappSize", s.k)}>
+                              <span>{s.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
+                        <div style={{
+                          width: d.whatsappSize === "large" ? 72 : 60,
+                          height: d.whatsappSize === "large" ? 72 : 60,
+                          borderRadius: "50%",
+                          background: "#25D366",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 10px 30px rgba(37,211,102,.45)",
+                        }}>
+                          <svg viewBox="0 0 24 24" style={{ width: 30, height: 30, fill: "#fff" }}>
+                            <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.494 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.728-.979zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -436,44 +460,9 @@ export default function ParaluxBuilder({ initialData, onChange }) {
         </div>
       </div>
 
-      {showAI && <AIModal d={d} setD={setD} onClose={() => setShowAI(false)} />}
+      {internalShowAI && <AIModal d={d} setD={setD} onClose={() => onShowAIChange && onShowAIChange(false)} />}
 
-      {showExport && (
-        <div className="px-overlay" onClick={() => setShowExport(false)}>
-          <div className="px-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="px-mhead">
-              <div>
-                <h3>Exportar para Vercel</h3>
-                <p>Un único archivo <code style={{ color: "var(--accent)" }}>index.html</code>, listo para desplegar.</p>
-              </div>
-              <button className="px-mclose" onClick={() => setShowExport(false)}><X size={18} /></button>
-            </div>
-            <div className="px-mbody">
-              <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-                <button className="px-btn px-btn--ai" onClick={download} style={{ flex: 1, justifyContent: "center" }}>
-                  <Download size={15} /> Descargar index.html
-                </button>
-                <button className={`px-btn ${copied ? "px-btn--ok" : ""}`} onClick={copyCode} style={{ flex: 1, justifyContent: "center" }}>
-                  {copied ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar código</>}
-                </button>
-              </div>
 
-              <div className="px-steps">
-                <strong style={{ color: "var(--hi)" }}>Desplegar en 3 pasos:</strong><br />
-                1. Crea una carpeta y guarda el archivo como <code>index.html</code>.<br />
-                2. En la terminal: <code>npm i -g vercel</code> y luego <code>vercel</code>.<br />
-                3. Acepta los valores por defecto → tu landing queda en línea.<br />
-                <span style={{ display: "block", marginTop: 8, color: "#6a6776" }}>
-                  O arrastra la carpeta a vercel.com/new. La guía explica cómo automatizar el deploy con la API de Vercel.
-                </span>
-              </div>
-
-              <div className="px-sub" style={{ marginTop: 20 }}>Vista del código</div>
-              <pre className="px-code">{generateHTML(d).slice(0, 1400) + "\n\n…  (código completo en el archivo descargado)"}</pre>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -646,6 +635,115 @@ function AIModal({ d, setD, onClose }) {
         </div>
       </div>
       <style>{`.px-spin{animation:pxspin 1s linear infinite}@keyframes pxspin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+/* ---------- Unsplash image search ---------- */
+function UnsplashSearch({ defaultQuery, onSelect }) {
+  const [query, setQuery] = useState(defaultQuery);
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  async function search(q = query) {
+    if (!q.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/images/search?q=${encodeURIComponent(q)}&per_page=12`);
+      if (res.ok) {
+        const data = await res.json();
+        setImages(data.images || []);
+      }
+    } catch (e) {
+      console.error("Image search error:", e);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    search(defaultQuery);
+  }, [defaultQuery]);
+
+  function handleSelect(img) {
+    setSelectedImage(img);
+  }
+
+  return (
+    <div>
+      <div className="px-sub" style={{ marginTop: 0 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Globe size={15} /> Buscar imágenes
+        </span>
+      </div>
+
+      <div className="px-field">
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            className="px-input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Ej: barber shop, restaurant, lawyer..."
+            onKeyDown={(e) => e.key === "Enter" && search()}
+            style={{ flex: 1 }}
+          />
+          <button className="px-btn" onClick={() => search()} disabled={loading}>
+            {loading ? <Loader2 size={14} className="px-spin" /> : <Search size={14} />}
+            Buscar
+          </button>
+        </div>
+      </div>
+
+      {selectedImage && (
+        <div className="px-rep" style={{ marginBottom: 14 }}>
+          <p className="px-hint" style={{ marginBottom: 8 }}>
+            Imagen seleccionada. ¿Dónde la querés usar?
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "hero"); setSelectedImage(null); }}>Hero</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "about"); setSelectedImage(null); }}>Nosotros</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "stmt"); setSelectedImage(null); }}>Frase</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "gallery"); setSelectedImage(null); }}>Galería</button>
+            <button className="px-btn px-btn--ai" onClick={() => { onSelect(selectedImage.url, "auto"); setSelectedImage(null); }}>Auto</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 8,
+        maxHeight: 320,
+        overflowY: "auto",
+        padding: 4,
+      }}>
+        {images.map((img) => (
+          <div
+            key={img.id}
+            onClick={() => handleSelect(img)}
+            style={{
+              cursor: "pointer",
+              borderRadius: 8,
+              overflow: "hidden",
+              border: selectedImage?.id === img.id ? "2px solid var(--accent)" : "2px solid transparent",
+              transition: "border .2s",
+            }}
+          >
+            <img
+              src={img.thumb}
+              alt={img.alt}
+              style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
+              loading="lazy"
+            />
+          </div>
+        ))}
+      </div>
+
+      {images.length === 0 && !loading && (
+        <p className="px-hint" style={{ textAlign: "center", padding: "20px 0" }}>
+          Escribí un término y buscá imágenes gratuitas de Unsplash.
+        </p>
+      )}
     </div>
   );
 }

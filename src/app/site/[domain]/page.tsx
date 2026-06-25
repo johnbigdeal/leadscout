@@ -48,6 +48,11 @@ export default async function SitePage({ params }: { params: Promise<{ domain: s
   const html = generateHTML(site.data as Record<string, any>);
 
   return (
-    <div dangerouslySetInnerHTML={{ __html: html }} />
+    <iframe
+      srcDoc={html}
+      style={{ width: "100%", height: "100vh", border: "none", display: "block" }}
+      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+      title={site.name || "Website"}
+    />
   );
 }

@@ -50,6 +50,41 @@
       "when": 1782004849094,
       "tag": "0006_conscious_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782022246658,
+      "tag": "0007_add_cloudflare_oauth_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782141324126,
+      "tag": "0008_add_available_domains",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782162891101,
+      "tag": "0009_fuzzy_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782164341022,
+      "tag": "0010_ancient_nico_minoru",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782168383215,
+      "tag": "0011_short_spiral",
+      "breakpoints": true
     }
   ]
 }

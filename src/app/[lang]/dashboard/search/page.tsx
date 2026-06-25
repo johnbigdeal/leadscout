@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, MapPin, Layers, Loader2, Crosshair, Link } from "lucide-react";
+import { Search, MapPin, Layers, Loader2, Crosshair, Link, Zap } from "lucide-react";
+import { UpgradeModal } from "@/components/upgrade-modal";
+import { FreeBadge } from "@/components/plan-badges";
 
 const CHANNELS = [
   { value: "google", labelKey: "google", icon: "🔍" },
@@ -23,11 +25,42 @@ export default function SearchPage() {
   const [channel, setChannel] = useState<string>("google");
   const [searching, setSearching] = useState(false);
   const [linkedinUrls, setLinkedinUrls] = useState("");
+  const [plan, setPlan] = useState<string>("free");
+  const [searchesRemaining, setSearchesRemaining] = useState<number | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const isLinkedIn = channel === "linkedin";
 
+  async function fetchPlan() {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const res = await fetch("/api/billing/plans", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setPlan(data.currentPlan || "free");
+      const freePlan = data.plans.find((p: any) => p.id === "free");
+      if (freePlan) setSearchesRemaining(freePlan.searchesRemaining ?? null);
+    }
+  }
+
+  useEffect(() => {
+    fetchPlan();
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSearchError(null);
+
+    /* Check if Free and no searches remaining */
+    if (plan === "free" && searchesRemaining === 0) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setSearching(true);
     try {
       const supabase = createClient();
@@ -44,6 +77,13 @@ export default function SearchPage() {
       if (res.ok) {
         const { searchId } = await res.json();
         router.push(`/dashboard/results?searchId=${searchId}`);
+      } else {
+        const err = await res.json();
+        if (res.status === 429) {
+          setShowUpgradeModal(true);
+        } else {
+          setSearchError(err.error || "Error al buscar");
+        }
       }
     } finally {
       setSearching(false);
@@ -139,18 +179,47 @@ export default function SearchPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={searching || (isLinkedIn && !linkedinUrls.trim())} className="w-full h-11 text-base shadow-lg shadow-primary/20">
+          {/* Plan status + error */}
+          {plan === "free" && searchesRemaining !== null && (
+            <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <FreeBadge>Free</FreeBadge>
+                <span>{searchesRemaining} búsquedas restantes hoy</span>
+              </div>
+              {searchesRemaining === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline"
+                >
+                  Upgrade a Pro
+                </button>
+              )}
+            </div>
+          )}
+          {searchError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {searchError}
+            </div>
+          )}
+
+          <Button type="submit" disabled={searching || (plan === "free" && searchesRemaining === 0) || (isLinkedIn && !linkedinUrls.trim())} className="w-full h-11 text-base shadow-lg shadow-primary/20">
             {searching ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 {t("statusRunning")}
               </>
             ) : (
-              t("submit")
+              <>
+                <Search className="mr-2 h-4 w-4" />
+                {t("submit")}
+              </>
             )}
           </Button>
         </form>
       </div>
+
+      <UpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} feature="Búsquedas ilimitadas" />
     </div>
   );
 }

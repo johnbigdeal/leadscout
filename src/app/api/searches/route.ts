@@ -3,12 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
 import {
   memberships, searches, apifyRuns, businesses, businessSeo,
-  opportunityScores, searchBusinesses, socialProfiles,
+  opportunityScores, searchBusinesses, socialProfiles, profiles,
 } from "@/lib/db/schema";
 import { eq, and, gt, or, ilike } from "drizzle-orm";
 import { startGooglePlacesSearch, searchInstagram, scrapeLinkedInComments, apifyClient } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
 import { scrapeWebsiteContact } from "@/lib/integrations/scraper";
+import { getPlanLimits, incrementSearchCount } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -338,12 +339,39 @@ export async function POST(request: Request) {
   const { keywords, location, channels = ["google"], linkedinUrls = [] } = await request.json();
   const orgId = membership.orgId;
 
+  /* Check if user is super admin */
+  const [profile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  const isSuperAdmin = profile?.role === "super_admin";
+
+  /* Check plan limits - Free: 1 search/day. Super admin bypass. */
+  let searchesRemaining = Infinity;
+  if (!isSuperAdmin) {
+    const limits = await getPlanLimits(orgId);
+    if (!limits.canSearch) {
+      return NextResponse.json(
+        { error: "Límite de búsquedas alcanzado. Upgrade a Pro para búsquedas ilimitadas." },
+        { status: 429 }
+      );
+    }
+    searchesRemaining = limits.searchesRemaining;
+  }
+
   const [search] = await db
     .insert(searches)
     .values({ orgId, createdBy: user.id, keywords, location, channels, status: "running" })
     .returning();
 
   await runPipeline(search.id, orgId, keywords, location, channels, linkedinUrls);
+
+  /* Increment search counter - skip for super admin */
+  if (!isSuperAdmin) {
+    await incrementSearchCount(orgId);
+  }
 
   const updated = await db.select({ status: searches.status }).from(searches).where(eq(searches.id, search.id)).limit(1);
   return NextResponse.json({ searchId: search.id, status: updated[0]?.status ?? "error" });

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { UpgradeModal } from "@/components/upgrade-modal";
 
 type Service = {
   id: string;
@@ -151,6 +152,8 @@ export default function SalesPage() {
   const [serviceName, setServiceName] = useState("");
   const [serviceCost, setServiceCost] = useState("");
   const [serviceRecurrence, setServiceRecurrence] = useState("one_time");
+  const [plan, setPlan] = useState<string>("free");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   async function fetchServices() {
     const headers = await getAuthHeaders();
@@ -162,6 +165,15 @@ export default function SalesPage() {
     const headers = await getAuthHeaders();
     const res = await fetch(`/api/pipelines?_=${Date.now()}`, { headers, cache: "no-store" });
     if (res.ok) setPipelines(await res.json());
+  }
+
+  async function fetchPlan() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/billing/plans", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setPlan(data.currentPlan || "free");
+    }
   }
 
   async function fetchStats(pipelineId?: string) {
@@ -177,6 +189,7 @@ export default function SalesPage() {
     fetchServices();
     fetchPipelines();
     fetchStats();
+    fetchPlan();
     const onVisible = () => { if (!document.hidden) { fetchServices(); fetchStats(selectedPipelineId); } };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
@@ -194,7 +207,12 @@ export default function SalesPage() {
     if (editService) {
       await fetch(`/api/services/${editService.id}`, { method: "PUT", headers, body: JSON.stringify(body) });
     } else {
-      await fetch("/api/services", { method: "POST", headers, body: JSON.stringify(body) });
+      const res = await fetch("/api/services", { method: "POST", headers, body: JSON.stringify(body) });
+      if (res.status === 403) {
+        setShowServiceDialog(false);
+        setShowUpgradeModal(true);
+        return;
+      }
     }
     setShowServiceDialog(false);
     setEditService(null);
@@ -342,7 +360,13 @@ export default function SalesPage() {
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
           <h2 className="font-display text-lg font-semibold">Servicios</h2>
-          <Button size="sm" onClick={openNewService}>
+          <Button size="sm" onClick={() => {
+            if (plan === "free" && services.length >= 3) {
+              setShowUpgradeModal(true);
+              return;
+            }
+            openNewService();
+          }}>
             <Plus className="mr-1.5 h-4 w-4" />
             Nuevo Servicio
           </Button>
@@ -423,6 +447,8 @@ export default function SalesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} feature="Servicios ilimitados" />
     </div>
   );
 }

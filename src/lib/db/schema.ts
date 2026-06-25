@@ -12,11 +12,20 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("user"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   currency: text("currency").notNull().default("USD"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export const memberships = pgTable("memberships", {
@@ -36,12 +45,21 @@ export const subscriptions = pgTable("subscriptions", {
   orgId: uuid("org_id")
     .primaryKey()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  stripeCustomerId: text("stripe_customer_id"),
-  stripeSubId: text("stripe_sub_id"),
   plan: text("plan").notNull().default("free"),
   status: text("status").notNull().default("active"),
-  searchQuota: integer("search_quota").notNull().default(50),
+  /* Usage tracking */
+  searchesToday: integer("searches_today").notNull().default(0),
+  searchesResetAt: timestamp("searches_reset_at", { withTimezone: true }),
+  pipelinesLimit: integer("pipelines_limit").notNull().default(1),
+  canConnectCloudflare: boolean("can_connect_cloudflare").notNull().default(false),
+  /* PayPal integration */
+  paypalSubscriptionId: text("paypal_subscription_id"),
+  paypalPlanId: text("paypal_plan_id"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  /* Legacy fields (kept for compatibility) */
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubId: text("stripe_sub_id"),
+  searchQuota: integer("search_quota").notNull().default(50),
 });
 
 export const usageEvents = pgTable("usage_events", {
@@ -272,10 +290,26 @@ export const cloudflareAccounts = pgTable("cloudflare_accounts", {
     .references(() => organizations.id, { onDelete: "cascade" }),
   accountId: text("account_id").notNull(),
   apiToken: text("api_token").notNull(),
+  refreshToken: text("refresh_token"),
+  authType: text("auth_type").notNull().default("manual"),
   email: text("email"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgUnique: uniqueIndex().on(t.orgId),
+}));
+
+export const availableDomains = pgTable("available_domains", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  domain: text("domain").notNull(),
+  zoneId: text("zone_id").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgDomainUnique: uniqueIndex().on(t.orgId, t.domain),
 }));
 
 export const customDomains = pgTable("custom_domains", {

@@ -55,7 +55,9 @@ export function generateHTML(d: Record<string, any>) {
   const p = PRESETS[(d.preset as keyof typeof PRESETS) || "modern"];
   const c = d.dark ? p.dark : p.light;
   const wa = waLink(d.whatsappNumber || "", d.whatsappMessage || "");
-  const hasWA = onlyDigits(d.whatsappNumber || "").length > 0;
+  const hasWA = d.whatsappEnabled !== false && onlyDigits(d.whatsappNumber || "").length > 0;
+  const waPosition = d.whatsappPosition || "right";
+  const waSize = d.whatsappSize || "normal";
 
   const services = (d.services || []).filter((s: any) => s.title || s.desc);
   const gallery = (d.gallery || []).filter(Boolean);
@@ -219,11 +221,19 @@ export function generateHTML(d: Record<string, any>) {
   .foot-links a{color:var(--muted);font-size:.88rem;transition:.2s}.foot-links a:hover{color:var(--accent)}
 
   /* whatsapp fab */
-  .wa{position:fixed;right:22px;bottom:22px;z-index:80;width:60px;height:60px;border-radius:50%;
+  .wa{position:fixed;bottom:22px;z-index:80;border-radius:50%;
     background:#25D366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(37,211,102,.45);
     transition:.25s;animation:pulse 2.4s infinite}
+  .wa--right{right:22px}
+  .wa--left{left:22px}
+  .wa--center{left:50%;transform:translateX(-50%)}
+  .wa--normal{width:60px;height:60px}
+  .wa--normal svg{width:30px;height:30px}
+  .wa--large{width:72px;height:72px}
+  .wa--large svg{width:36px;height:36px}
   .wa:hover{transform:scale(1.08)}
-  .wa svg{width:30px;height:30px;fill:#fff}
+  .wa--center:hover{transform:translateX(-50%) scale(1.08)}
+  .wa svg{fill:#fff}
   @keyframes pulse{0%{box-shadow:0 10px 30px rgba(37,211,102,.45),0 0 0 0 rgba(37,211,102,.5)}
     70%{box-shadow:0 10px 30px rgba(37,211,102,.45),0 0 0 16px rgba(37,211,102,0)}
     100%{box-shadow:0 10px 30px rgba(37,211,102,.45),0 0 0 0 rgba(37,211,102,0)}}
@@ -250,7 +260,13 @@ export function generateHTML(d: Record<string, any>) {
     "var io=new IntersectionObserver(function(es){es.forEach(function(e){" +
     "if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});}," +
     "{threshold:0.12,rootMargin:'0px 0px -8% 0px'});" +
-    "els.forEach(function(el){io.observe(el);});});";
+    "els.forEach(function(el){io.observe(el);});" +
+    "document.querySelectorAll('a[href^=\"#\"]').forEach(function(a){" +
+    "a.addEventListener('click',function(e){" +
+    "e.preventDefault();" +
+    "var t=document.querySelector(this.getAttribute('href'));" +
+    "if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}" +
+    "});});});";
 
   const waSVG =
     '<svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.494 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.728-.979zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>';
@@ -310,7 +326,7 @@ ${galleryHTML}
     <h2 class="reveal">${esc(d.ctaTitle || "Cuéntanos sobre tu proyecto")}</h2>
     <p class="reveal" style="transition-delay:80ms">${esc(d.ctaSubtext || "Respondemos rápido. Escríbenos y agendemos una conversación.")}</p>
     <div class="reveal" style="transition-delay:140ms">
-      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.ctaText || "Escribir por WhatsApp")} →</a>` : d.email ? `<a class="btn" href="mailto:${esc(d.email)}">Enviar correo →</a>` : ""}
+      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.contactCtaText || d.ctaText || "Escribir por WhatsApp")} →</a>` : d.email ? `<a class="btn" href="mailto:${esc(d.email)}">Enviar correo →</a>` : ""}
     </div>
   </div>
 </section>
@@ -325,7 +341,7 @@ ${galleryHTML}
   </div>
 </footer>
 
-${hasWA ? `<a class="wa" href="${wa}" target="_blank" rel="noopener" aria-label="WhatsApp">${waSVG}</a>` : ""}
+${hasWA ? `<a class="wa wa--${waPosition} wa--${waSize}" href="${wa}" target="_blank" rel="noopener" aria-label="WhatsApp">${waSVG}</a>` : ""}
 <script>${js}</script>
 </body>
 </html>`;

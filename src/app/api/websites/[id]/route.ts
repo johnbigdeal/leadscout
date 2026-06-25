@@ -1,30 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { websites, memberships, customDomains, cloudflareAccounts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { removeDomainFromVercel } from "@/lib/vercel";
 
 export const dynamic = "force-dynamic";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-);
-
-async function auth(request: Request) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
-  if (!user) return null;
-  const [membership] = await db
-    .select({ orgId: memberships.orgId, role: memberships.role })
-    .from(memberships)
-    .where(eq(memberships.userId, user.id))
-    .limit(1);
-  if (!membership) return null;
-  return { user, orgId: membership.orgId, role: membership.role };
-}
 
 async function cfRequest(token: string, path: string, opts?: RequestInit) {
   const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
@@ -42,8 +23,9 @@ async function cfRequest(token: string, path: string, opts?: RequestInit) {
 
 /* GET /api/websites/[id] */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await auth(request);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const result = await requireAuth(request);
+  if (result.response) return result.response;
+  const ctx = result.ctx;
 
   const { id } = await params;
   const rows = await db
@@ -58,8 +40,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 /* PUT /api/websites/[id] */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await auth(request);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const result = await requireAuth(request);
+  if (result.response) return result.response;
+  const ctx = result.ctx;
 
   const { id } = await params;
   const { data, html, name, status } = await request.json();
@@ -83,10 +66,45 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 /* DELETE /api/websites/[id] */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await auth(request);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const result = await requireAuth(request);
+  if (result.response) return result.response;
+  const ctx = result.ctx;
 
   const { id } = await params;
+
+  /* Find and delete Cloudflare DNS records and Vercel domains */
+  const domainRows = await db
+    .select()
+    .from(customDomains)
+    .where(and(eq(customDomains.websiteId, id), eq(customDomains.orgId, ctx.orgId)));
+
+  for (const domain of domainRows) {
+    /* Delete from Cloudflare */
+    if (domain.dnsRecordId) {
+      const cfRows = await db
+        .select({ apiToken: cloudflareAccounts.apiToken })
+        .from(cloudflareAccounts)
+        .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+        .limit(1);
+
+      if (cfRows.length > 0) {
+        try {
+          await cfRequest(cfRows[0].apiToken, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, {
+            method: "DELETE",
+          });
+        } catch (e: any) {
+          console.error("Failed to delete Cloudflare DNS:", e.message);
+        }
+      }
+    }
+
+    /* Delete from Vercel */
+    try {
+      await removeDomainFromVercel(domain.domain);
+    } catch (e: any) {
+      console.error("Failed to remove domain from Vercel:", e.message);
+    }
+  }
 
   /* Delete associated custom domains */
   await db.delete(customDomains).where(eq(customDomains.websiteId, id));
