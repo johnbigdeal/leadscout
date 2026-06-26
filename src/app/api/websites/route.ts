@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 }
 
 /* Unsplash helper */
-async function searchUnsplashImages(query: string, count: number = 8): Promise<string[]> {
+async function searchUnsplashImages(query: string, count: number = 8): Promise<Array<{ url: string; author: string; authorUrl: string; unsplashUrl: string }>> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY;
   if (!accessKey) return [];
 
@@ -39,7 +39,18 @@ async function searchUnsplashImages(query: string, count: number = 8): Promise<s
     if (!res.ok) return [];
 
     const data = await res.json();
-    return data.results?.map((img: any) => img.urls?.regular).filter(Boolean) || [];
+    const UTM = "utm_source=leadscout&utm_medium=referral";
+    return (
+      data.results?.map((img: any) => {
+        const username = img.user?.username || "";
+        return {
+          url: img.urls?.regular,
+          author: img.user?.name || "Unsplash",
+          authorUrl: username ? `https://unsplash.com/@${username}?${UTM}` : `https://unsplash.com/?${UTM}`,
+          unsplashUrl: `https://unsplash.com/?${UTM}`,
+        };
+      }).filter((img: any) => img.url) || []
+    );
   } catch (e) {
     console.error("Unsplash search error:", e);
     return [];
@@ -130,9 +141,9 @@ export async function POST(request: Request) {
         location: biz.address || "",
         instagram,
         website: biz.website || "",
-        heroImage: images[0] || "https://picsum.photos/seed/bizhero/1800/1100",
-        aboutImage: images[1] || "https://picsum.photos/seed/bizabout/1000/1250",
-        stmtImage: images[2] || "https://picsum.photos/seed/lumenstmt/1800/1000",
+        heroImage: images[0] || { url: "https://picsum.photos/seed/bizhero/1800/1100" },
+        aboutImage: images[1] || { url: "https://picsum.photos/seed/bizabout/1000/1250" },
+        stmtImage: images[2] || { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
         gallery: images.slice(3, 7) || [],
         servicesTitle: "Servicios",
         services: [

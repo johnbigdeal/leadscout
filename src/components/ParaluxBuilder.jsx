@@ -53,12 +53,12 @@ const DEFAULT = {
   heroHeadline: "Espacios que respiran luz",
   heroSubtext: "Diseñamos interiores serenos y atemporales donde cada material y cada detalle tiene un propósito.",
   ctaText: "Hablar por WhatsApp",
-  heroImage: "https://picsum.photos/seed/lumenhero/1800/1100",
+  heroImage: { url: "https://picsum.photos/seed/lumenhero/1800/1100" },
   aboutTitle: "Diseño con intención",
   aboutText: "Somos un estudio enfocado en crear ambientes que equilibran función y emoción. Trabajamos de cerca con cada cliente, cuidando la proporción, la luz natural y la calidez de los materiales para que el resultado se sienta, antes de verse.",
-  aboutImage: "https://picsum.photos/seed/lumenabout/1000/1250",
+  aboutImage: { url: "https://picsum.photos/seed/lumenabout/1000/1250" },
   stmtText: "El buen diseño es invisible: se siente antes de verse.",
-  stmtImage: "https://picsum.photos/seed/lumenstmt/1800/1000",
+  stmtImage: { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
   servicesTitle: "Cómo trabajamos",
   services: [
     { title: "Interiorismo", desc: "Proyectos integrales de interior, desde el concepto hasta el último detalle de ejecución." },
@@ -201,8 +201,23 @@ const TABS = [
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
 
+function normalizeImage(img) {
+  if (!img) return { url: "" };
+  if (typeof img === "string") return { url: img };
+  return { url: img.url || "", author: img.author, authorUrl: img.authorUrl, unsplashUrl: img.unsplashUrl };
+}
+
 export default function ParaluxBuilder({ initialData, onChange, device, onDeviceChange, showAI, onShowAIChange }) {
-  const [d, setD] = useState({ ...DEFAULT, ...(initialData || {}) });
+  const normalizedInitial = initialData
+    ? {
+        ...initialData,
+        heroImage: normalizeImage(initialData.heroImage),
+        aboutImage: normalizeImage(initialData.aboutImage),
+        stmtImage: normalizeImage(initialData.stmtImage),
+        gallery: (initialData.gallery || []).map(normalizeImage),
+      }
+    : {};
+  const [d, setD] = useState({ ...DEFAULT, ...normalizedInitial });
   const [tab, setTab] = useState("contenido");
   const [preview, setPreview] = useState("");
   const internalDevice = device || "desktop";
@@ -226,7 +241,7 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
     set("services", d.services.map((s, idx) => (idx === i ? { ...s, [k]: v } : s)));
   const delService = (i) => set("services", d.services.filter((_, idx) => idx !== i));
 
-  const addGallery = () => set("gallery", [...(d.gallery || []), ""]);
+  const addGallery = () => set("gallery", [...(d.gallery || []), { url: "" }]);
   const updGallery = (i, v) => set("gallery", d.gallery.map((g, idx) => (idx === i ? v : g)));
   const delGallery = (i) => set("gallery", d.gallery.filter((_, idx) => idx !== i));
 
@@ -299,16 +314,22 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                 <>
                   <UnsplashSearch
                     defaultQuery={d.businessName || d.tagline || "business"}
-                    onSelect={(url, target) => {
-                      if (target === "hero") set("heroImage", url);
-                      else if (target === "about") set("aboutImage", url);
-                      else if (target === "stmt") set("stmtImage", url);
-                      else if (target === "gallery") set("gallery", [...(d.gallery || []), url]);
+                    onSelect={(img, target) => {
+                      const imageObj = {
+                        url: img.url,
+                        author: img.author,
+                        authorUrl: img.authorUrl,
+                        unsplashUrl: img.unsplashUrl,
+                      };
+                      if (target === "hero") set("heroImage", imageObj);
+                      else if (target === "about") set("aboutImage", imageObj);
+                      else if (target === "stmt") set("stmtImage", imageObj);
+                      else if (target === "gallery") set("gallery", [...(d.gallery || []), imageObj]);
                       else {
-                        if (!d.heroImage) set("heroImage", url);
-                        else if (!d.aboutImage) set("aboutImage", url);
-                        else if (!d.stmtImage) set("stmtImage", url);
-                        else set("gallery", [...(d.gallery || []), url]);
+                        if (!d.heroImage?.url) set("heroImage", imageObj);
+                        else if (!d.aboutImage?.url) set("aboutImage", imageObj);
+                        else if (!d.stmtImage?.url) set("stmtImage", imageObj);
+                        else set("gallery", [...(d.gallery || []), imageObj]);
                       }
                     }}
                   />
@@ -485,6 +506,16 @@ function Field({ label, v, on, ph, hint, area }) {
 /* ---------- image field with upload ---------- */
 function ImageField({ label, value, onChange, hint }) {
   const [uploading, setUploading] = useState(false);
+  const isObject = value && typeof value === "object";
+  const url = isObject ? value.url || "" : value || "";
+
+  function updateUrl(newUrl) {
+    if (isObject) {
+      onChange({ ...value, url: newUrl });
+    } else {
+      onChange(newUrl);
+    }
+  }
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
@@ -495,8 +526,8 @@ function ImageField({ label, value, onChange, hint }) {
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
-        const { url } = await res.json();
-        onChange(url);
+        const { url: uploadedUrl } = await res.json();
+        updateUrl(uploadedUrl);
       }
     } catch (err) {
       console.error("Upload failed", err);
@@ -511,9 +542,9 @@ function ImageField({ label, value, onChange, hint }) {
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
           className="px-input"
-          value={value || ""}
+          value={url}
           placeholder="https://..."
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => updateUrl(e.target.value)}
           style={{ flex: 1 }}
         />
         <label style={{ position: "relative", cursor: "pointer" }}>
@@ -714,11 +745,11 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
             Imagen seleccionada. ¿Dónde la querés usar?
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "hero"); setSelectedImage(null); }}>Hero</button>
-            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "about"); setSelectedImage(null); }}>Nosotros</button>
-            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "stmt"); setSelectedImage(null); }}>Frase</button>
-            <button className="px-btn" onClick={() => { onSelect(selectedImage.url, "gallery"); setSelectedImage(null); }}>Galería</button>
-            <button className="px-btn px-btn--ai" onClick={() => { onSelect(selectedImage.url, "auto"); setSelectedImage(null); }}>Auto</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage, "hero"); setSelectedImage(null); }}>Hero</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage, "about"); setSelectedImage(null); }}>Nosotros</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage, "stmt"); setSelectedImage(null); }}>Frase</button>
+            <button className="px-btn" onClick={() => { onSelect(selectedImage, "gallery"); setSelectedImage(null); }}>Galería</button>
+            <button className="px-btn px-btn--ai" onClick={() => { onSelect(selectedImage, "auto"); setSelectedImage(null); }}>Auto</button>
           </div>
         </div>
       )}

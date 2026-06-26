@@ -14,6 +14,29 @@ const esc = (s = "") =>
 
 const onlyDigits = (s = "") => String(s).replace(/[^\d]/g, "");
 
+/* image value may be a legacy string or an object with attribution */
+const imgUrl = (img: any): string => {
+  if (!img) return "";
+  if (typeof img === "string") return img;
+  return img.url || "";
+};
+
+const imgAttribution = (img: any) => {
+  if (!img || typeof img === "string") return null;
+  if (!img.author && !img.authorUrl) return null;
+  return {
+    author: img.author || "Unsplash",
+    authorUrl: img.authorUrl || "https://unsplash.com/?utm_source=leadscout&utm_medium=referral",
+    unsplashUrl: img.unsplashUrl || "https://unsplash.com/?utm_source=leadscout&utm_medium=referral",
+  };
+};
+
+const attributionHTML = (img: any, extraClass = ""): string => {
+  const attr = imgAttribution(img);
+  if (!attr) return "";
+  return `<div class="attribution ${extraClass}">Photo by <a href="${esc(attr.authorUrl)}" target="_blank" rel="noopener">${esc(attr.author)}</a> on <a href="${esc(attr.unsplashUrl)}" target="_blank" rel="noopener">Unsplash</a></div>`;
+};
+
 const waLink = (num: string, msg: string) => {
   const n = onlyDigits(num);
   const t = encodeURIComponent(msg || "");
@@ -101,9 +124,10 @@ export function generateHTML(d: Record<string, any>) {
         <div class="gallery">
           ${gallery
             .map(
-              (src: string, i: number) => `
+              (img: any, i: number) => `
             <figure class="g-item reveal" style="transition-delay:${(i % 3) * 90}ms">
-              <img src="${esc(src)}" alt="Proyecto ${i + 1}" loading="lazy"/>
+              <img src="${esc(imgUrl(img))}" alt="Proyecto ${i + 1}" loading="lazy"/>
+              ${attributionHTML(img, "attribution--gallery")}
             </figure>`,
             )
             .join("")}
@@ -112,10 +136,11 @@ export function generateHTML(d: Record<string, any>) {
     : "";
 
   const stmtHTML = d.stmtText
-    ? `<section class="stmt" style="background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('${esc(d.stmtImage || "")}')">
+    ? `<section class="stmt" style="background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('${esc(imgUrl(d.stmtImage))}')">
         <div class="wrap">
           <p class="stmt-text reveal">${esc(d.stmtText)}</p>
         </div>
+        ${attributionHTML(d.stmtImage, "attribution--stmt")}
       </section>`
     : "";
 
@@ -165,6 +190,14 @@ export function generateHTML(d: Record<string, any>) {
   .hero-bg{position:absolute;inset:-12% 0;background-size:cover;background-position:center;will-change:transform;z-index:0}
   .hero-overlay{position:absolute;inset:0;z-index:1;
     background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.5) 55%,rgba(0,0,0,.72) 100%)}
+  .attribution{position:absolute;z-index:5;font-size:11px;color:rgba(255,255,255,.72);background:rgba(0,0,0,.45);padding:5px 9px;border-radius:4px;backdrop-filter:blur(4px)}
+  .attribution a{color:#fff;text-decoration:underline}
+  .attribution a:hover{color:#fff}
+  .attribution--hero{bottom:18px;right:18px}
+  .attribution--about{position:static;margin-top:10px;color:var(--muted);background:none;padding:0;font-size:11px}
+  .attribution--about a{color:var(--muted);text-decoration:underline}
+  .attribution--stmt{bottom:18px;left:50%;transform:translateX(-50%)}
+  .attribution--gallery{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;font-size:10px;background:rgba(0,0,0,.55)}
   .hero-inner{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 28px;width:100%;color:#fff}
   .hero h1{color:#fff;max-width:14ch}
   .hero .eyebrow{color:#fff;opacity:.92}
@@ -290,8 +323,9 @@ export function generateHTML(d: Record<string, any>) {
 </header>
 
 <section class="hero">
-  <div class="hero-bg" style="background-image:url('${esc(d.heroImage || "")}')"></div>
+  <div class="hero-bg" style="background-image:url('${esc(imgUrl(d.heroImage))}')"></div>
   <div class="hero-overlay"></div>
+  ${attributionHTML(d.heroImage, "attribution--hero")}
   <div class="hero-inner">
     <p class="eyebrow reveal">${esc(d.tagline || "")}</p>
     <h1 class="reveal" style="transition-delay:80ms">${esc(d.heroHeadline || "")}</h1>
@@ -311,7 +345,7 @@ export function generateHTML(d: Record<string, any>) {
         <h2 class="reveal">${esc(d.aboutTitle || "")}</h2>
         <p class="reveal" style="transition-delay:80ms">${esc(d.aboutText || "")}</p>
       </div>
-      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(d.aboutImage)}" alt="Nosotros" loading="lazy"></div>` : ""}
+      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(imgUrl(d.aboutImage))}" alt="Nosotros" loading="lazy">${attributionHTML(d.aboutImage, "attribution--about")}</div>` : ""}
     </div>
   </div>
 </section>
