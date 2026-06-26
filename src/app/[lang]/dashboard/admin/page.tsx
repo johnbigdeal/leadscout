@@ -85,13 +85,25 @@ interface TrialData {
   expired: boolean;
 }
 
+interface AdminSearch {
+  id: string;
+  orgId: string;
+  orgName: string | null;
+  keywords: string;
+  location: string;
+  status: string;
+  createdAt: string;
+  businessCount: number;
+}
+
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials" | "searches">("overview");
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
   const [trials, setTrials] = useState<TrialData[]>([]);
+  const [searches, setSearches] = useState<AdminSearch[]>([]);
   const [extending, setExtending] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -158,6 +170,23 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function fetchSearches() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/searches", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setSearches(data.searches);
+    }
+  }
+
+  async function handleDeleteSearch(searchId: string) {
+    if (!confirm("¿Eliminar esta búsqueda? Se borrarán también sus resultados.")) return;
+    const headers = await getAuthHeaders();
+    await fetch(`/api/searches/${searchId}`, { method: "DELETE", headers });
+    fetchSearches();
+    fetchStats();
+  }
+
   async function handleExtendTrial(orgId: string) {
     const days = Number(extendDays[orgId]) || 7;
     setExtending(orgId);
@@ -182,7 +211,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials(), fetchSearches()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -226,6 +255,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "orgs"} onClick={() => setTab("orgs")} label={`Organizaciones (${orgs.length})`} />
         <TabButton active={tab === "subscriptions"} onClick={() => setTab("subscriptions")} label={`Suscripciones (${subscriptions.length})`} />
         <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
+        <TabButton active={tab === "searches"} onClick={() => setTab("searches")} label={`Búsquedas (${searches.length})`} />
       </div>
 
       {/* Overview Tab */}
@@ -646,6 +676,68 @@ export default function AdminDashboardPage() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Searches Tab */}
+      {tab === "searches" && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+              <tr>
+                <th className="pb-3 pl-4">Búsqueda</th>
+                <th className="pb-3">Organización</th>
+                <th className="pb-3">Estado</th>
+                <th className="pb-3">Resultados</th>
+                <th className="pb-3">Creada</th>
+                <th className="pb-3 pr-4">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {searches.map((s) => (
+                <tr key={s.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="py-3 pl-4">
+                    <div>
+                      <p className="font-medium">{s.keywords}</p>
+                      <p className="text-xs text-zinc-500">{s.location}</p>
+                    </div>
+                  </td>
+                  <td className="py-3">
+                    <span className="font-medium">{s.orgName || "—"}</span>
+                    <p className="text-xs font-mono text-zinc-400">{s.orgId.slice(0, 8)}...</p>
+                  </td>
+                  <td className="py-3">
+                    <Badge variant="outline">{s.status}</Badge>
+                  </td>
+                  <td className="py-3 text-zinc-600">{s.businessCount}</td>
+                  <td className="py-3 text-zinc-500">
+                    {new Date(s.createdAt).toLocaleDateString("es", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="py-3 pr-4">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-red-600 hover:text-red-700"
+                      onClick={() => handleDeleteSearch(s.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {searches.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-sm text-zinc-400">
+                    No hay búsquedas registradas.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
