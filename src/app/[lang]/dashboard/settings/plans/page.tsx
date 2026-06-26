@@ -38,6 +38,9 @@ export default function PlansPage() {
   const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentPlan, setCurrentPlan] = useState<string>("free");
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [daysUntilDeletion, setDaysUntilDeletion] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState(false);
   const [message, setMessage] = useState("");
@@ -71,6 +74,9 @@ export default function PlansPage() {
       const data = await res.json();
       setPlans(data.plans);
       setCurrentPlan(data.currentPlan);
+      setTrialExpired(data.trialExpired || false);
+      setTrialEndsAt(data.trialEndsAt || null);
+      setDaysUntilDeletion(data.daysUntilDeletion || null);
     }
     setLoading(false);
   }
@@ -117,6 +123,42 @@ export default function PlansPage() {
       {message && (
         <div className="mb-6 rounded-lg bg-primary/10 p-4 text-center text-sm text-primary">
           {message}
+        </div>
+      )}
+
+      {/* Trial status */}
+      {currentPlan === "free" && trialExpired && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+              <Zap className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-red-800">Tu prueba gratuita ha terminado</p>
+              <p className="text-sm text-red-600">
+                {daysUntilDeletion !== null && daysUntilDeletion > 0
+                  ? `Tus datos se eliminarán en ${daysUntilDeletion} días. Upgrade a Pro para recuperar el acceso.`
+                  : "Tus datos serán eliminados próximamente."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      {currentPlan === "free" && !trialExpired && trialEndsAt && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+              <Zap className="h-5 w-5 text-amber-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-amber-800">
+                Prueba gratuita activa — termina el {new Date(trialEndsAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <p className="text-sm text-amber-600">
+                Upgrade a Pro antes de que termine para no perder el acceso.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

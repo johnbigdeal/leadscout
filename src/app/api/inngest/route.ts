@@ -1,8 +1,22 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
-import { processSearch } from "@/lib/inngest/functions";
+import {
+  processSearch,
+  trialReminder3Days,
+  trialReminder1Day,
+  trialExpiredNotification,
+  trialDataWarning,
+  trialCleanup,
+} from "@/lib/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [processSearch],
+  functions: [
+    processSearch,
+    trialReminder3Days,
+    trialReminder1Day,
+    trialExpiredNotification,
+    trialDataWarning,
+    trialCleanup,
+  ],
 });

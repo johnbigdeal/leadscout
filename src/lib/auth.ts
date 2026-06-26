@@ -5,7 +5,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { db } from "./db";
-import { memberships, organizations, profiles } from "./db/schema";
+import { memberships, organizations, profiles, subscriptions } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 const supabase = createClient(
@@ -106,3 +106,35 @@ export async function getOrgCurrency(orgId: string): Promise<string> {
 }
 
 export { translateAuthError } from "./auth-errors";
+
+/**
+ * Check trial status for an organization.
+ * Returns trial info including whether expired and days until data deletion.
+ */
+export async function checkTrialStatus(orgId: string): Promise<{
+  trialExpired: boolean;
+  trialEndsAt: Date | null;
+  daysUntilDeletion: number | null;
+}> {
+  const [sub] = await db
+    .select({ trialEndsAt: subscriptions.trialEndsAt, dataDeletedAt: subscriptions.dataDeletedAt })
+    .from(subscriptions)
+    .where(eq(subscriptions.orgId, orgId))
+    .limit(1);
+
+  if (!sub || !sub.trialEndsAt) {
+    return { trialExpired: false, trialEndsAt: null, daysUntilDeletion: null };
+  }
+
+  const now = new Date();
+  const trialExpired = new Date(sub.trialEndsAt) < now;
+
+  let daysUntilDeletion: number | null = null;
+  if (sub.dataDeletedAt) {
+    daysUntilDeletion = Math.max(0, Math.ceil((new Date(sub.dataDeletedAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  } else if (trialExpired) {
+    daysUntilDeletion = 30;
+  }
+
+  return { trialExpired, trialEndsAt: sub.trialEndsAt, daysUntilDeletion };
+}

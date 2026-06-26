@@ -56,6 +56,9 @@ export const subscriptions = pgTable("subscriptions", {
   paypalSubscriptionId: text("paypal_subscription_id"),
   paypalPlanId: text("paypal_plan_id"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  /* Trial system */
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  dataDeletedAt: timestamp("data_deleted_at", { withTimezone: true }),
   /* Legacy fields (kept for compatibility) */
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubId: text("stripe_sub_id"),

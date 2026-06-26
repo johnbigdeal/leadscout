@@ -18,6 +18,7 @@ import {
   CreditCard,
   Trash2,
   Save,
+  Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -75,12 +76,24 @@ interface AdminSubscription {
   paypalError?: string;
 }
 
+interface TrialData {
+  orgId: string;
+  orgName: string;
+  plan: string;
+  trialEndsAt: string | null;
+  dataDeletedAt: string | null;
+  expired: boolean;
+}
+
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials">("overview");
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
+  const [trials, setTrials] = useState<TrialData[]>([]);
+  const [extending, setExtending] = useState<string | null>(null);
+  const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   async function fetchStats() {
@@ -136,6 +149,29 @@ export default function AdminDashboardPage() {
     fetchOrgs();
   }
 
+  async function fetchTrials() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/trials", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setTrials(data.trials);
+    }
+  }
+
+  async function handleExtendTrial(orgId: string) {
+    const days = Number(extendDays[orgId]) || 7;
+    setExtending(orgId);
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    await fetch(`/api/admin/trials/${orgId}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ days }),
+    });
+    setExtending(null);
+    fetchTrials();
+  }
+
   async function handleUpgradeSubscription(orgId: string) {
     if (!confirm("¿Upgrade manual a Pro?")) return;
     const headers = await getAuthHeaders();
@@ -146,7 +182,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -189,6 +225,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "users"} onClick={() => setTab("users")} label={`Usuarios (${users.length})`} />
         <TabButton active={tab === "orgs"} onClick={() => setTab("orgs")} label={`Organizaciones (${orgs.length})`} />
         <TabButton active={tab === "subscriptions"} onClick={() => setTab("subscriptions")} label={`Suscripciones (${subscriptions.length})`} />
+        <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
       </div>
 
       {/* Overview Tab */}
@@ -455,6 +492,89 @@ export default function AdminDashboardPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Trials Tab */}
+      {tab === "trials" && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button size="sm" variant={trials.filter(t => !t.expired).length > 0 ? "default" : "outline"} onClick={fetchTrials}>
+              Todos ({trials.length})
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="pb-3 pl-4">Organización</th>
+                  <th className="pb-3">Plan</th>
+                  <th className="pb-3">Trial termina</th>
+                  <th className="pb-3">Eliminación</th>
+                  <th className="pb-3">Estado</th>
+                  <th className="pb-3 pr-4">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trials.map((t) => (
+                  <tr key={t.orgId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="py-3 pl-4 font-medium">{t.orgName}</td>
+                    <td className="py-3">
+                      {t.expired ? <FreeBadge>Free (expired)</FreeBadge> : <FreeBadge>Free</FreeBadge>}
+                    </td>
+                    <td className="py-3 text-zinc-500">
+                      {t.trialEndsAt ? new Date(t.trialEndsAt).toLocaleDateString("es") : "—"}
+                    </td>
+                    <td className="py-3 text-zinc-500">
+                      {t.dataDeletedAt ? new Date(t.dataDeletedAt).toLocaleDateString("es") : "—"}
+                    </td>
+                    <td className="py-3">
+                      {t.expired ? (
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Expirado</Badge>
+                      ) : (
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Activo</Badge>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          placeholder="7"
+                          value={extendDays[t.orgId] || ""}
+                          onChange={(e) => setExtendDays(prev => ({ ...prev, [t.orgId]: e.target.value }))}
+                          className="w-16 rounded border border-zinc-200 px-2 py-1 text-xs"
+                        />
+                        <span className="text-xs text-zinc-400">días</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-600 hover:bg-amber-50"
+                          disabled={extending === t.orgId}
+                          onClick={() => handleExtendTrial(t.orgId)}
+                        >
+                          {extending === t.orgId ? (
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+                          ) : (
+                            <Zap className="mr-1 h-3 w-3" />
+                          )}
+                          Extender
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {trials.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-sm text-zinc-400">
+                      No hay trials registrados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -84,5 +84,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     currentPlan: limits.plan,
     plans,
+    trialExpired: limits.trialExpired,
+    trialEndsAt: limits.trialEndsAt,
+    daysUntilDeletion: limits.daysUntilDeletion,
   });
 }

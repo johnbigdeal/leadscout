@@ -46,10 +46,13 @@ export async function POST(request: Request) {
     approved: isSuperAdmin,
   });
 
+  const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   await db.insert(subscriptions).values({
     orgId: org.id,
     plan: "free",
     searchQuota: 50,
+    trialEndsAt,
   });
 
   await db.insert(pipelines).values({

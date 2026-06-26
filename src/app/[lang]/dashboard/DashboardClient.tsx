@@ -60,12 +60,18 @@ export default function DashboardClient({
   isSuperAdmin,
   currency: initialCurrency,
   plan,
+  trialExpired,
+  trialDaysLeft,
+  daysUntilDeletion,
 }: {
   children: React.ReactNode;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   currency: string;
   plan: string;
+  trialExpired?: boolean;
+  trialDaysLeft?: number;
+  daysUntilDeletion?: number | null;
 }) {
   const t = useTranslations("common");
   const router = useRouter();
@@ -201,13 +207,55 @@ export default function DashboardClient({
       </aside>
 
       <div className="flex flex-1 flex-col">
-        {/* Free banner — persistent upgrade prompt */}
-        {plan === "free" && !dismissBanner && !isSuperAdmin && (
+        {/* Trial expired overlay */}
+        {trialExpired && !isSuperAdmin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <Zap className="h-8 w-8 text-red-500" />
+              </div>
+              <h2 className="mb-2 font-display text-2xl tracking-tight text-foreground">
+                Tu prueba terminó
+              </h2>
+              <p className="mb-1 text-sm text-muted-foreground">
+                El período de prueba gratuita ha expirado.
+              </p>
+              {daysUntilDeletion !== null && (
+                <p className="mb-6 text-sm font-medium text-amber-600">
+                  Tus datos se eliminarán en {daysUntilDeletion} días.
+                </p>
+              )}
+              <div className="flex flex-col gap-3">
+                <UpgradeButton onClick={() => setShowUpgradeModal(true)} />
+                <button
+                  onClick={async () => {
+                    const supabase = createClient();
+                    await supabase.auth.signOut();
+                    window.location.href = "/";
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground underline"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Trial countdown banner */}
+        {plan === "free" && !trialExpired && !dismissBanner && !isSuperAdmin && (
           <div className="relative flex items-center justify-center gap-3 border-b border-amber-200/50 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-4 py-2.5">
             <FreeBadge>Free</FreeBadge>
-            <span className="text-sm text-amber-800">
-              Upgrade a Pro para desbloquear dominios propios, búsquedas ilimitadas y más.
-            </span>
+            {trialDaysLeft && trialDaysLeft > 0 ? (
+              <span className="text-sm text-amber-800">
+                Prueba gratuita: te quedan <strong>{trialDaysLeft} día{trialDaysLeft !== 1 ? "s" : ""}</strong>.
+                Upgrade a Pro para desbloquear todas las funciones.
+              </span>
+            ) : (
+              <span className="text-sm text-amber-800">
+                Upgrade a Pro para desbloquear dominios propios, búsquedas ilimitadas y más.
+              </span>
+            )}
             <UpgradeButton onClick={() => setShowUpgradeModal(true)} />
             <button
               onClick={() => setDismissBanner(true)}

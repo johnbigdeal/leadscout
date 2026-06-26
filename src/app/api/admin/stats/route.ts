@@ -8,8 +8,9 @@ import {
   searches,
   leads,
   profiles,
+  subscriptions,
 } from "@/lib/db/schema";
-import { count, eq } from "drizzle-orm";
+import { count, eq, and, isNotNull, sql } from "drizzle-orm";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,30 @@ export async function GET(request: Request) {
     .from(profiles)
     .where(eq(profiles.role, "super_admin"));
 
+  const now = new Date();
+
+  const [expiredTrials] = await db
+    .select({ count: count() })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.plan, "free"),
+        isNotNull(subscriptions.trialEndsAt),
+        sql`${subscriptions.trialEndsAt} < ${now}`,
+      ),
+    );
+
+  const [activeTrials] = await db
+    .select({ count: count() })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.plan, "free"),
+        isNotNull(subscriptions.trialEndsAt),
+        sql`${subscriptions.trialEndsAt} > ${now}`,
+      ),
+    );
+
   return NextResponse.json({
     totalUsers,
     totalOrgs: orgsCount.count,
@@ -51,5 +76,7 @@ export async function GET(request: Request) {
     totalLeads: leadsCount.count,
     pendingApprovals: pendingCount.count,
     totalSuperAdmins: superAdminCount.count,
+    expiredTrials: expiredTrials.count,
+    activeTrials: activeTrials.count,
   });
 }

@@ -8,11 +8,16 @@ import {
   opportunityScores,
   usageEvents,
   searchBusinesses,
+  subscriptions,
+  organizations,
+  memberships,
+  profiles,
 } from "@/lib/db/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, lt, sql } from "drizzle-orm";
 import { inngest } from "./client";
 import { startGooglePlacesSearch, searchInstagram } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
+import { sendEmail, trialReminder3DaysHtml, trialExpiredHtml, dataDeletionWarningHtml, dataDeletedHtml } from "@/lib/integrations/resend";
 
 const CACHE_TTL_DAYS = 7;
 
@@ -275,5 +280,216 @@ export const processSearch = inngest.createFunction(
     });
 
     return { searchId, resultsCount: results.length };
+  },
+);
+
+/* ───── Trial email reminders ───── */
+
+async function getOrgAdminEmail(orgId: string): Promise<{ email: string; name: string } | null> {
+  const [membership] = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.orgId, orgId), eq(memberships.role, "owner")))
+    .limit(1);
+
+  if (!membership) return null;
+
+  const [profile] = await db
+    .select({ email: profiles.email })
+    .from(profiles)
+    .where(eq(profiles.id, membership.userId))
+    .limit(1);
+
+  if (!profile) return null;
+
+  return { email: profile.email, name: profile.email.split("@")[0] };
+}
+
+export const trialReminder3Days = inngest.createFunction(
+  {
+    id: "trial-reminder-3-days",
+    triggers: [{ cron: "TZ=America/Argentina/Buenos_Aires 0 12 * * *" }],
+  },
+  async ({ step }) => {
+    const target = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+    const expiredSoon = await db
+      .select({ orgId: subscriptions.orgId })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.plan, "free"),
+          sql`${subscriptions.trialEndsAt} IS NOT NULL`,
+          sql`${subscriptions.trialEndsAt} < ${target}`,
+          sql`${subscriptions.trialEndsAt} > ${new Date()}`,
+        ),
+      );
+
+    for (const sub of expiredSoon) {
+      await step.run(`send-reminder-${sub.orgId}`, async () => {
+        const admin = await getOrgAdminEmail(sub.orgId);
+        if (!admin) return;
+        await sendEmail({
+          to: admin.email,
+          subject: "Tu prueba gratuita termina en 3 días",
+          html: trialReminder3DaysHtml(admin.name, 3),
+        });
+      });
+    }
+
+    return { sent: expiredSoon.length };
+  },
+);
+
+export const trialReminder1Day = inngest.createFunction(
+  {
+    id: "trial-reminder-1-day",
+    triggers: [{ cron: "TZ=America/Argentina/Buenos_Aires 0 12 * * *" }],
+  },
+  async ({ step }) => {
+    const target = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
+
+    const expiredSoon = await db
+      .select({ orgId: subscriptions.orgId })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.plan, "free"),
+          sql`${subscriptions.trialEndsAt} IS NOT NULL`,
+          sql`${subscriptions.trialEndsAt} < ${target}`,
+          sql`${subscriptions.trialEndsAt} > ${new Date()}`,
+        ),
+      );
+
+    for (const sub of expiredSoon) {
+      await step.run(`send-reminder-${sub.orgId}`, async () => {
+        const admin = await getOrgAdminEmail(sub.orgId);
+        if (!admin) return;
+        await sendEmail({
+          to: admin.email,
+          subject: "Tu prueba gratuita termina MAÑANA",
+          html: trialReminder3DaysHtml(admin.name, 1),
+        });
+      });
+    }
+
+    return { sent: expiredSoon.length };
+  },
+);
+
+export const trialExpiredNotification = inngest.createFunction(
+  {
+    id: "trial-expired",
+    triggers: [{ cron: "TZ=America/Argentina/Buenos_Aires 0 12 * * *" }],
+  },
+  async ({ step }) => {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const justExpired = await db
+      .select({ orgId: subscriptions.orgId })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.plan, "free"),
+          sql`${subscriptions.trialEndsAt} IS NOT NULL`,
+          sql`${subscriptions.trialEndsAt} < ${now}`,
+          sql`${subscriptions.trialEndsAt} > ${yesterday}`,
+        ),
+      );
+
+    for (const sub of justExpired) {
+      await step.run(`send-expired-${sub.orgId}`, async () => {
+        const admin = await getOrgAdminEmail(sub.orgId);
+        if (!admin) return;
+        await sendEmail({
+          to: admin.email,
+          subject: "Tu prueba gratuita ha terminado",
+          html: trialExpiredHtml(admin.name),
+        });
+      });
+    }
+
+    return { sent: justExpired.length };
+  },
+);
+
+export const trialDataWarning = inngest.createFunction(
+  {
+    id: "trial-data-warning",
+    triggers: [{ cron: "TZ=America/Argentina/Buenos_Aires 0 12 * * *" }],
+  },
+  async ({ step }) => {
+    const now = new Date();
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const nearDeletion = await db
+      .select({ orgId: subscriptions.orgId, trialEndsAt: subscriptions.trialEndsAt })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.plan, "free"),
+          sql`${subscriptions.trialEndsAt} IS NOT NULL`,
+          sql`${subscriptions.dataDeletedAt} IS NOT NULL`,
+          sql`${subscriptions.dataDeletedAt} < ${in7Days}`,
+          sql`${subscriptions.dataDeletedAt} > ${now}`,
+        ),
+      );
+
+    for (const sub of nearDeletion) {
+      await step.run(`send-warning-${sub.orgId}`, async () => {
+        const admin = await getOrgAdminEmail(sub.orgId);
+        if (!admin) return;
+        const daysLeft = Math.ceil((new Date(sub.trialEndsAt!).getTime() + 30 * 24 * 60 * 60 * 1000 - now.getTime()) / (1000 * 60 * 60 * 24));
+        await sendEmail({
+          to: admin.email,
+          subject: `Tus datos se eliminarán en ${daysLeft} días`,
+          html: dataDeletionWarningHtml(admin.name, daysLeft),
+        });
+      });
+    }
+
+    return { sent: nearDeletion.length };
+  },
+);
+
+/* ───── Daily cleanup cron: hard-delete expired data ───── */
+
+export const trialCleanup = inngest.createFunction(
+  {
+    id: "trial-cleanup",
+    triggers: [{ cron: "TZ=America/Argentina/Buenos_Aires 0 6 * * *" }],
+  },
+  async ({ step }) => {
+    const now = new Date();
+
+    const expired = await db
+      .select({ orgId: subscriptions.orgId })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.plan, "free"),
+          sql`${subscriptions.dataDeletedAt} IS NOT NULL`,
+          sql`${subscriptions.dataDeletedAt} < ${now}`,
+        ),
+      );
+
+    for (const sub of expired) {
+      await step.run(`cleanup-${sub.orgId}`, async () => {
+        const admin = await getOrgAdminEmail(sub.orgId);
+        if (admin) {
+          await sendEmail({
+            to: admin.email,
+            subject: "Tus datos han sido eliminados",
+            html: dataDeletedHtml(admin.name),
+          });
+        }
+
+        /* Hard-delete the organization (cascades to all data) */
+        await db.delete(organizations).where(eq(organizations.id, sub.orgId));
+      });
+    }
+
+    return { deleted: expired.length };
   },
 );

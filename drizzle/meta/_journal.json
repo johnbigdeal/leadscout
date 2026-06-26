@@ -92,6 +92,13 @@
       "when": 1782491253729,
       "tag": "0012_add_global_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0013_add_trial_columns",
+      "breakpoints": true
     }
   ]
 }

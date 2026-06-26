@@ -27,6 +27,7 @@ export default function SearchPage() {
   const [linkedinUrls, setLinkedinUrls] = useState("");
   const [plan, setPlan] = useState<string>("free");
   const [searchesRemaining, setSearchesRemaining] = useState<number | null>(null);
+  const [trialExpired, setTrialExpired] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export default function SearchPage() {
     if (res.ok) {
       const data = await res.json();
       setPlan(data.currentPlan || "free");
+      setTrialExpired(data.trialExpired || false);
       const freePlan = data.plans.find((p: any) => p.id === "free");
       if (freePlan) setSearchesRemaining(freePlan.searchesRemaining ?? null);
     }
@@ -54,6 +56,12 @@ export default function SearchPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSearchError(null);
+
+    /* Check if trial expired */
+    if (trialExpired) {
+      setShowUpgradeModal(true);
+      return;
+    }
 
     /* Check if Free and no searches remaining */
     if (plan === "free" && searchesRemaining === 0) {

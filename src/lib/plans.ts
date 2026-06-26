@@ -16,6 +16,9 @@ export interface PlanLimits {
   servicesLimit: number;
   categoriesLimit: number;
   tagsPerLeadLimit: number;
+  trialExpired?: boolean;
+  trialEndsAt?: string | null;
+  daysUntilDeletion?: number | null;
 }
 
 /**
@@ -40,6 +43,9 @@ export async function getPlanLimits(orgId: string): Promise<PlanLimits> {
       servicesLimit: 3,
       categoriesLimit: 3,
       tagsPerLeadLimit: 3,
+      trialExpired: false,
+      trialEndsAt: null,
+      daysUntilDeletion: 30,
     };
   }
 
@@ -60,9 +66,38 @@ export async function getPlanLimits(orgId: string): Promise<PlanLimits> {
     };
   }
 
-  /* Free tier: check daily search reset */
+  /* Trial check: if trialEndsAt is in the past, block everything */
   const now = new Date();
+  const trialExpired = sub.trialEndsAt && new Date(sub.trialEndsAt) <= now;
+
+  if (trialExpired) {
+    return {
+      plan: "free",
+      canSearch: false,
+      searchesRemaining: 0,
+      canCreatePipeline: false,
+      pipelinesRemaining: 0,
+      canConnectCloudflare: false,
+      canPublishToCustomDomain: false,
+      servicesLimit: 0,
+      categoriesLimit: 0,
+      tagsPerLeadLimit: 0,
+      trialExpired: true,
+      trialEndsAt: sub.trialEndsAt?.toISOString() || null,
+      daysUntilDeletion: sub.dataDeletedAt
+        ? Math.max(0, Math.ceil((new Date(sub.dataDeletedAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+        : 30,
+    };
+  }
+
+  /* Free tier: check daily search reset */
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const daysUntilDeletion = sub.dataDeletedAt
+    ? Math.max(0, Math.ceil((new Date(sub.dataDeletedAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+    : sub.trialEndsAt
+      ? 30
+      : null;
 
   if (sub.searchesResetAt && sub.searchesResetAt < startOfToday) {
     /* Reset counter */
@@ -95,6 +130,9 @@ export async function getPlanLimits(orgId: string): Promise<PlanLimits> {
     servicesLimit: 3,
     categoriesLimit: 3,
     tagsPerLeadLimit: 3,
+    trialExpired: false,
+    trialEndsAt: sub.trialEndsAt?.toISOString() || null,
+    daysUntilDeletion,
   };
 }
 
