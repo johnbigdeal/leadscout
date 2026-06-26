@@ -40,14 +40,25 @@ export async function GET(request: Request) {
 
     const data = await res.json();
 
-    const images = data.results.map((img: any) => ({
-      id: img.id,
-      url: img.urls.regular,
-      thumb: img.urls.small,
-      alt: img.alt_description || img.description || query,
-      author: img.user?.name || "Unsplash",
-      link: img.links?.html || "",
-    }));
+    const UTM = "utm_source=leadscout&utm_medium=referral";
+
+    const images = data.results.map((img: any) => {
+      const username = img.user?.username || "";
+      return {
+        id: img.id,
+        url: img.urls.regular,
+        thumb: img.urls.small,
+        alt: img.alt_description || img.description || query,
+        author: img.user?.name || "Unsplash",
+        username,
+        link: img.links?.html || "",
+        downloadLocation: img.links?.download_location || "",
+        authorUrl: username
+          ? `https://unsplash.com/@${username}?${UTM}`
+          : `https://unsplash.com/?${UTM}`,
+        unsplashUrl: `https://unsplash.com/?${UTM}`,
+      };
+    });
 
     return NextResponse.json({
       images,

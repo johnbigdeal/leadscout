@@ -172,3 +172,22 @@
   mask-composite: exclude;
   pointer-events: none;
 }
+
+/* Unsplash image attribution hover overlay */
+.unsplash-thumb .unsplash-attribution {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.2));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+}
+
+.unsplash-thumb:hover .unsplash-attribution,
+.unsplash-thumb:focus-within .unsplash-attribution {
+  opacity: 1;
+}
+

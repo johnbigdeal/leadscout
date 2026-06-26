@@ -665,8 +665,22 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
     search(defaultQuery);
   }, [defaultQuery]);
 
+  async function trackDownload(img) {
+    if (!img.downloadLocation) return;
+    try {
+      await fetch("/api/images/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ downloadLocation: img.downloadLocation }),
+      });
+    } catch (e) {
+      console.error("Download tracking error:", e);
+    }
+  }
+
   function handleSelect(img) {
     setSelectedImage(img);
+    trackDownload(img);
   }
 
   return (
@@ -721,7 +735,9 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
           <div
             key={img.id}
             onClick={() => handleSelect(img)}
+            className="unsplash-thumb"
             style={{
+              position: "relative",
               cursor: "pointer",
               borderRadius: 8,
               overflow: "hidden",
@@ -735,6 +751,30 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
               style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
               loading="lazy"
             />
+            <div className="unsplash-attribution">
+              <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 10, lineHeight: 1.3 }}>
+                Photo by{" "}
+                <a
+                  href={img.authorUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: "#fff", textDecoration: "underline", fontWeight: 500 }}
+                >
+                  {img.author}
+                </a>{" "}
+                on{" "}
+                <a
+                  href={img.unsplashUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: "#fff", textDecoration: "underline", fontWeight: 500 }}
+                >
+                  Unsplash
+                </a>
+              </span>
+            </div>
           </div>
         ))}
       </div>
