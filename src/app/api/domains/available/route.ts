@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { availableDomains, memberships } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
   const rows = await db
     .select()
     .from(availableDomains)
-    .where(eq(availableDomains.orgId, ctx.orgId));
+    .where(
+      or(
+        eq(availableDomains.isGlobal, true),
+        eq(availableDomains.orgId, ctx.orgId)
+      )
+    );
 
   return NextResponse.json(rows);
 }

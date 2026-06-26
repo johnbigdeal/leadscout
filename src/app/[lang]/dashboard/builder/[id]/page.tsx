@@ -164,7 +164,7 @@ export default function BuilderPage() {
 
     const body = publishMode === "custom"
       ? { customDomain: customDomain.trim() }
-      : { subdomain: subdomain.trim(), rootDomain: selectedDomain || undefined };
+      : { subdomain: subdomain.trim(), rootDomain: plan === "free" ? undefined : (selectedDomain || undefined) };
 
     const res = await fetch(`/api/websites/${websiteId}/publish`, {
       method: "POST",
@@ -303,6 +303,9 @@ export default function BuilderPage() {
         if (open && !subdomain) {
           setSubdomain(generateSubdomain());
         }
+        if (open && plan === "free") {
+          setSelectedDomain("leadscout.lat");
+        }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -339,7 +342,17 @@ export default function BuilderPage() {
 
             {publishMode === "subdomain" ? (
               <>
-                {availableDomains.length > 1 && (
+                {/* Free plan: fixed domain, no selector */}
+                {plan === "free" ? (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      Dominio
+                    </label>
+                    <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                      leadscout.lat
+                    </p>
+                  </div>
+                ) : availableDomains.length > 1 ? (
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                       Dominio
@@ -356,7 +369,7 @@ export default function BuilderPage() {
                       ))}
                     </select>
                   </div>
-                )}
+                ) : null}
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                     Subdominio
@@ -368,7 +381,7 @@ export default function BuilderPage() {
                       placeholder="mi-negocio"
                       className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
-                    <span className="text-sm text-zinc-500">.{selectedDomain || "leadscout.lat"}</span>
+                    <span className="text-sm text-zinc-500 shrink-0">.{plan === "free" ? "leadscout.lat" : (selectedDomain || "leadscout.lat")}</span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Solo letras, números y guiones. Ej: estudio-lumen

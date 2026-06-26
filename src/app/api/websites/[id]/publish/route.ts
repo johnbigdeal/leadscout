@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { websites, memberships, customDomains, cloudflareAccounts, availableDomains, subscriptions } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -215,29 +215,68 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "No se pudo conectar con Cloudflare para publicar. Contacta al administrador." }, { status: 500 });
   }
 
+  /* Check plan for domain access control */
+  const [sub] = await db
+    .select({ plan: subscriptions.plan })
+    .from(subscriptions)
+    .where(eq(subscriptions.orgId, ctx.orgId))
+    .limit(1);
+  const plan = sub?.plan || "free";
+
   /* Resolve root domain */
-  let mainDomain = requestedRootDomain;
+  let mainDomain: string | null = null;
   let zoneId: string | null = null;
 
-  if (!mainDomain) {
-    const [defaultDomain] = await db
+  /* Free plan: force leadscout.lat */
+  if (plan === "free") {
+    mainDomain = "leadscout.lat";
+    const [g] = await db
       .select()
       .from(availableDomains)
-      .where(and(eq(availableDomains.orgId, ctx.orgId), eq(availableDomains.isDefault, true), eq(availableDomains.isActive, true)))
+      .where(and(eq(availableDomains.domain, "leadscout.lat"), eq(availableDomains.isGlobal, true)))
       .limit(1);
-    if (defaultDomain) {
-      mainDomain = defaultDomain.domain;
-      zoneId = defaultDomain.zoneId;
-    } else {
-      mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "") || "leadscout.lat";
+    if (g) zoneId = g.zoneId;
+  } else {
+    /* Pro plan: use requestedRootDomain if provided */
+    mainDomain = requestedRootDomain;
+    if (!mainDomain) {
+      /* Find default domain (org-specific first, then global) */
+      const [orgDefault] = await db
+        .select()
+        .from(availableDomains)
+        .where(and(eq(availableDomains.orgId, ctx.orgId), eq(availableDomains.isDefault, true), eq(availableDomains.isActive, true)))
+        .limit(1);
+      if (orgDefault) {
+        mainDomain = orgDefault.domain;
+        zoneId = orgDefault.zoneId;
+      } else {
+        const [globalDefault] = await db
+          .select()
+          .from(availableDomains)
+          .where(and(eq(availableDomains.isGlobal, true), eq(availableDomains.isDefault, true)))
+          .limit(1);
+        if (globalDefault) {
+          mainDomain = globalDefault.domain;
+          zoneId = globalDefault.zoneId;
+        } else {
+          mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "") || "leadscout.lat";
+        }
+      }
     }
   }
 
+  /* Resolve zoneId from DB if not already set */
   if (mainDomain && !zoneId) {
     const [matched] = await db
       .select()
       .from(availableDomains)
-      .where(and(eq(availableDomains.orgId, ctx.orgId), eq(availableDomains.domain, mainDomain), eq(availableDomains.isActive, true)))
+      .where(
+        and(
+          eq(availableDomains.domain, mainDomain),
+          eq(availableDomains.isActive, true),
+          or(eq(availableDomains.orgId, ctx.orgId), eq(availableDomains.isGlobal, true))
+        )
+      )
       .limit(1);
     if (matched) zoneId = matched.zoneId;
   }

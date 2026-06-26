@@ -301,12 +301,12 @@ export const cloudflareAccounts = pgTable("cloudflare_accounts", {
 export const availableDomains = pgTable("available_domains", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
-    .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   domain: text("domain").notNull(),
-  zoneId: text("zone_id").notNull(),
+  zoneId: text("zone_id"),
   isActive: boolean("is_active").notNull().default(true),
   isDefault: boolean("is_default").notNull().default(false),
+  isGlobal: boolean("is_global").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgDomainUnique: uniqueIndex().on(t.orgId, t.domain),
