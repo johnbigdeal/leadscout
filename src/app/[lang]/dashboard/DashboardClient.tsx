@@ -226,7 +226,7 @@ export default function DashboardClient({
                 </p>
               )}
               <div className="flex flex-col gap-3">
-                <UpgradeButton onClick={() => setShowUpgradeModal(true)} />
+                <UpgradeButton onClick={() => router.push("/dashboard/settings/plans")} />
                 <button
                   onClick={async () => {
                     const supabase = createClient();
