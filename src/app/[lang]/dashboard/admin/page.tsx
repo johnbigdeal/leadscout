@@ -104,6 +104,7 @@ export default function AdminDashboardPage() {
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
   const [trials, setTrials] = useState<TrialData[]>([]);
   const [searches, setSearches] = useState<AdminSearch[]>([]);
+  const [selectedSearches, setSelectedSearches] = useState<Set<string>>(new Set());
   const [extending, setExtending] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -183,6 +184,21 @@ export default function AdminDashboardPage() {
     if (!confirm("¿Eliminar esta búsqueda? Se borrarán también sus resultados.")) return;
     const headers = await getAuthHeaders();
     await fetch(`/api/searches/${searchId}`, { method: "DELETE", headers });
+    fetchSearches();
+    fetchStats();
+  }
+
+  async function handleBulkDeleteSearches() {
+    if (selectedSearches.size === 0) return;
+    if (!confirm(`¿Eliminar ${selectedSearches.size} búsqueda${selectedSearches.size === 1 ? "" : "s"} seleccionada${selectedSearches.size === 1 ? "" : "s"}?`)) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    await fetch("/api/admin/searches/bulk-delete", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ids: Array.from(selectedSearches) }),
+    });
+    setSelectedSearches(new Set());
     fetchSearches();
     fetchStats();
   }
@@ -683,63 +699,111 @@ export default function AdminDashboardPage() {
 
       {/* Searches Tab */}
       {tab === "searches" && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="pb-3 pl-4">Búsqueda</th>
-                <th className="pb-3">Organización</th>
-                <th className="pb-3">Estado</th>
-                <th className="pb-3">Resultados</th>
-                <th className="pb-3">Creada</th>
-                <th className="pb-3 pr-4">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {searches.map((s) => (
-                <tr key={s.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="py-3 pl-4">
-                    <div>
-                      <p className="font-medium">{s.keywords}</p>
-                      <p className="text-xs text-zinc-500">{s.location}</p>
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <span className="font-medium">{s.orgName || "—"}</span>
-                    <p className="text-xs font-mono text-zinc-400">{s.orgId.slice(0, 8)}...</p>
-                  </td>
-                  <td className="py-3">
-                    <Badge variant="outline">{s.status}</Badge>
-                  </td>
-                  <td className="py-3 text-zinc-600">{s.businessCount}</td>
-                  <td className="py-3 text-zinc-500">
-                    {new Date(s.createdAt).toLocaleDateString("es", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="py-3 pr-4">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteSearch(s.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {searches.length === 0 && (
+        <div className="space-y-4">
+          {selectedSearches.size > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4">
+              <span className="text-sm font-medium text-red-800">
+                {selectedSearches.size} seleccionada{selectedSearches.size === 1 ? "" : "s"}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-100"
+                onClick={handleBulkDeleteSearches}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Eliminar seleccionadas
+              </Button>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-sm text-zinc-400">
-                    No hay búsquedas registradas.
-                  </td>
+                  <th className="pb-3 pl-4">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary"
+                      checked={searches.length > 0 && searches.every((s) => selectedSearches.has(s.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSearches(new Set(searches.map((s) => s.id)));
+                        } else {
+                          setSelectedSearches(new Set());
+                        }
+                      }}
+                    />
+                  </th>
+                  <th className="pb-3">Búsqueda</th>
+                  <th className="pb-3">Organización</th>
+                  <th className="pb-3">Estado</th>
+                  <th className="pb-3">Resultados</th>
+                  <th className="pb-3">Creada</th>
+                  <th className="pb-3 pr-4">Acciones</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {searches.map((s) => (
+                  <tr key={s.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="py-3 pl-4">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary"
+                        checked={selectedSearches.has(s.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedSearches);
+                          if (e.target.checked) {
+                            next.add(s.id);
+                          } else {
+                            next.delete(s.id);
+                          }
+                          setSelectedSearches(next);
+                        }}
+                      />
+                    </td>
+                    <td className="py-3">
+                      <div>
+                        <p className="font-medium">{s.keywords}</p>
+                        <p className="text-xs text-zinc-500">{s.location}</p>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className="font-medium">{s.orgName || "—"}</span>
+                      <p className="text-xs font-mono text-zinc-400">{s.orgId.slice(0, 8)}...</p>
+                    </td>
+                    <td className="py-3">
+                      <Badge variant="outline">{s.status}</Badge>
+                    </td>
+                    <td className="py-3 text-zinc-600">{s.businessCount}</td>
+                    <td className="py-3 text-zinc-500">
+                      {new Date(s.createdAt).toLocaleDateString("es", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-red-600 hover:text-red-700"
+                        onClick={() => handleDeleteSearch(s.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {searches.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-zinc-400">
+                      No hay búsquedas registradas.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
