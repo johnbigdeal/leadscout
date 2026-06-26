@@ -12,5 +12,5 @@ CREATE UNIQUE INDEX idx_available_domains_global_domain ON available_domains(dom
 -- Seed global domains
 INSERT INTO available_domains (domain, zone_id, is_global, is_default, is_active)
 VALUES
-  ('leadscout.lat', 'b609138c0a3131668a080f0f67e66670', true, true, true),
-  ('pyme.live', '198a10805c5e769f35d61374bf69665a', true, false, true);
+  ('leadscout.lat', '198a10805c5e769f35d61374bf69665a', true, true, true),
+  ('pyme.live', 'b609138c0a3131668a080f0f67e66670', true, false, true);
