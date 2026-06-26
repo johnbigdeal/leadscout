@@ -202,7 +202,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   /* ─── SUBDOMAIN (uses system Cloudflare token) ─── */
   /* Get Cloudflare token: prefer system env var, fallback to org's Cloudflare */
-  const subdomainCfToken = process.env.CLOUDFLARE_SYSTEM_TOKEN || (
+  const subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || (
     (await db
       .select({ apiToken: cloudflareAccounts.apiToken })
       .from(cloudflareAccounts)
