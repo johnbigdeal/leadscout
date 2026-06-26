@@ -183,11 +183,15 @@
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.2));
   opacity: 0;
   transition: opacity 0.2s ease;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .unsplash-thumb:hover .unsplash-attribution,
 .unsplash-thumb:focus-within .unsplash-attribution {
   opacity: 1;
+}
+
+.unsplash-thumb .unsplash-attribution a {
+  pointer-events: auto;
 }
 
