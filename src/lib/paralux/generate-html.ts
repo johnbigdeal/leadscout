@@ -37,6 +37,26 @@ const attributionHTML = (img: any, extraClass = ""): string => {
   return `<div class="attribution ${extraClass}">Photo by <a href="${esc(attr.authorUrl)}" target="_blank" rel="noopener">${esc(attr.author)}</a> on <a href="${esc(attr.unsplashUrl)}" target="_blank" rel="noopener">Unsplash</a></div>`;
 };
 
+const collectAttributions = (images: any[]) => {
+  const seen = new Set<string>();
+  return images
+    .map(imgAttribution)
+    .filter(Boolean)
+    .filter((attr: any) => {
+      if (seen.has(attr.author)) return false;
+      seen.add(attr.author);
+      return true;
+    }) as Array<{ author: string; authorUrl: string; unsplashUrl: string }>;
+};
+
+const footerAttributionHTML = (attrs: Array<{ author: string; authorUrl: string; unsplashUrl: string }>): string => {
+  if (attrs.length === 0) return "";
+  const photographers = attrs
+    .map((a) => `<a href="${esc(a.authorUrl)}" target="_blank" rel="noopener">${esc(a.author)}</a>`)
+    .join(", ");
+  return `<div class="footer-attribution">Photos by ${photographers} on <a href="${esc(attrs[0].unsplashUrl)}" target="_blank" rel="noopener">Unsplash</a></div>`;
+};
+
 const waLink = (num: string, msg: string) => {
   const n = onlyDigits(num);
   const t = encodeURIComponent(msg || "");
@@ -84,6 +104,7 @@ export function generateHTML(d: Record<string, any>) {
 
   const services = (d.services || []).filter((s: any) => s.title || s.desc);
   const gallery = (d.gallery || []).filter(Boolean);
+  const unsplashAttributions = collectAttributions([d.heroImage, d.aboutImage, d.stmtImage, ...gallery]);
 
   const navLinks = [
     services.length ? '<a href="#servicios">Servicios</a>' : "",
@@ -190,14 +211,14 @@ export function generateHTML(d: Record<string, any>) {
   .hero-bg{position:absolute;inset:-12% 0;background-size:cover;background-position:center;will-change:transform;z-index:0}
   .hero-overlay{position:absolute;inset:0;z-index:1;
     background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.5) 55%,rgba(0,0,0,.72) 100%)}
-  .attribution{position:absolute;z-index:5;font-size:11px;color:rgba(255,255,255,.72);background:rgba(0,0,0,.45);padding:5px 9px;border-radius:4px;backdrop-filter:blur(4px)}
-  .attribution a{color:#fff;text-decoration:underline}
+  .attribution{position:absolute;z-index:5;font-size:11px;color:rgba(255,255,255,.82);background:rgba(0,0,0,.5);padding:5px 9px;border-radius:4px;backdrop-filter:blur(4px);opacity:0;transition:opacity .25s ease;pointer-events:none}
+  .attribution a{color:#fff;text-decoration:underline;pointer-events:auto}
   .attribution a:hover{color:#fff}
+  .hero:hover .attribution--hero,.about-img:hover .attribution--about,.stmt:hover .attribution--stmt,.g-item:hover .attribution--gallery{opacity:1}
   .attribution--hero{bottom:18px;right:18px}
-  .attribution--about{position:static;margin-top:10px;color:var(--muted);background:none;padding:0;font-size:11px}
-  .attribution--about a{color:var(--muted);text-decoration:underline}
+  .attribution--about{bottom:10px;left:10px}
   .attribution--stmt{bottom:18px;left:50%;transform:translateX(-50%)}
-  .attribution--gallery{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;font-size:10px;background:rgba(0,0,0,.55)}
+  .attribution--gallery{bottom:8px;left:8px;right:8px;text-align:center;font-size:10px;background:rgba(0,0,0,.55)}
   .hero-inner{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 28px;width:100%;color:#fff}
   .hero h1{color:#fff;max-width:14ch}
   .hero .eyebrow{color:#fff;opacity:.92}
@@ -217,7 +238,7 @@ export function generateHTML(d: Record<string, any>) {
   .section--tight{padding:120px 0 90px}
   .about-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:64px;align-items:center}
   .about-grid p{color:var(--muted);font-size:1.05rem;max-width:52ch}
-  .about-img{aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--surface)}
+  .about-img{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--surface)}
   .about-img img{width:100%;height:100%;object-fit:cover}
   @media(max-width:820px){.about-grid{grid-template-columns:1fr;gap:40px}.about-img{aspect-ratio:16/10}}
 
@@ -236,7 +257,7 @@ export function generateHTML(d: Record<string, any>) {
 
   /* gallery */
   .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 8px;max-width:1400px;margin:48px auto 0}
-  .g-item{aspect-ratio:4/5;overflow:hidden;border-radius:4px;background:var(--surface)}
+  .g-item{position:relative;aspect-ratio:4/5;overflow:hidden;border-radius:4px;background:var(--surface)}
   .g-item img{width:100%;height:100%;object-fit:cover;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
   .g-item:hover img{transform:scale(1.06)}
   @media(max-width:820px){.gallery{grid-template-columns:repeat(2,1fr)}}
@@ -252,6 +273,8 @@ export function generateHTML(d: Record<string, any>) {
   .foot small{display:block;color:var(--muted);margin-top:8px;font-size:.86rem}
   .foot-links{display:flex;gap:22px;flex-wrap:wrap}
   .foot-links a{color:var(--muted);font-size:.88rem;transition:.2s}.foot-links a:hover{color:var(--accent)}
+  .footer-attribution{width:100%;margin-top:22px;font-size:.78rem;color:var(--muted)}
+  .footer-attribution a{color:var(--muted);text-decoration:underline}.footer-attribution a:hover{color:var(--accent)}
 
   /* whatsapp fab */
   .wa{position:fixed;bottom:22px;z-index:80;border-radius:50%;
@@ -372,6 +395,7 @@ ${galleryHTML}
       <small>${esc([d.location, d.phone, d.email].filter(Boolean).join("  ·  "))}</small>
     </div>
     <div class="foot-links">${socials}</div>
+    ${footerAttributionHTML(unsplashAttributions)}
   </div>
 </footer>
 
