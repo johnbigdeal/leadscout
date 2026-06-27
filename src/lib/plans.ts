@@ -4,11 +4,14 @@
 import { db } from "./db";
 import { subscriptions, pipelines, services, leadCategories, leads, searches } from "./db/schema";
 import { eq, and, gte, count, countDistinct, sql } from "drizzle-orm";
+import { getCreditsRemaining } from "./referrals";
 
 export interface PlanLimits {
   plan: "free" | "pro";
   canSearch: boolean;
   searchesRemaining: number;
+  creditsRemaining?: number;
+  usedToday?: number;
   canCreatePipeline: boolean;
   pipelinesRemaining: number;
   canConnectCloudflare: boolean;
@@ -52,10 +55,12 @@ export async function getPlanLimits(orgId: string, userId?: string): Promise<Pla
   const isPro = sub.plan === "pro" && sub.status === "active";
 
   if (isPro) {
+    /* Pro: unlimited searches; referral credits just accumulate (for trainings/discounts). */
     return {
       plan: "pro",
       canSearch: true,
       searchesRemaining: Infinity,
+      creditsRemaining: userId ? await getCreditsRemaining(userId) : 0,
       canCreatePipeline: true,
       pipelinesRemaining: Infinity,
       canConnectCloudflare: true,
@@ -119,7 +124,9 @@ export async function getPlanLimits(orgId: string, userId?: string): Promise<Pla
     usedToday = sub.searchesToday || 0;
   }
 
-  const searchesRemaining = Math.max(0, 1 - usedToday);
+  /* Referral credits add extra searches on top of the daily free one. */
+  const creditsRemaining = userId ? await getCreditsRemaining(userId) : 0;
+  const searchesRemaining = Math.max(0, 1 - usedToday) + creditsRemaining;
 
   /* Count existing pipelines */
   const existingPipelines = await db
@@ -134,6 +141,8 @@ export async function getPlanLimits(orgId: string, userId?: string): Promise<Pla
     plan: "free",
     canSearch: searchesRemaining > 0,
     searchesRemaining,
+    creditsRemaining,
+    usedToday,
     canCreatePipeline: pipelinesRemaining > 0,
     pipelinesRemaining,
     canConnectCloudflare: false,

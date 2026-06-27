@@ -106,6 +106,13 @@
       "when": 1782579652787,
       "tag": "0014_add_service_currency",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782585816034,
+      "tag": "0015_add_referrals",
+      "breakpoints": true
     }
   ]
 }

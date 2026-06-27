@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       ],
       current: effectivePlan === "free",
       searchesRemaining: limits.searchesRemaining,
+      creditsRemaining: limits.creditsRemaining ?? 0,
     },
     {
       id: "pro-monthly",

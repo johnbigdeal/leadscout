@@ -74,10 +74,12 @@ export default function SignUpPage() {
       return;
     }
 
+    const referralCode = new URLSearchParams(window.location.search).get("ref") || undefined;
+
     const res = await fetch("/api/onboarding", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: data.user.id, orgName }),
+      body: JSON.stringify({ userId: data.user.id, orgName, referralCode }),
     });
 
     setLoading(false);

@@ -5,7 +5,7 @@ import {
   memberships, searches, apifyRuns, businesses, businessSeo,
   opportunityScores, searchBusinesses, socialProfiles, profiles,
 } from "@/lib/db/schema";
-import { eq, and, gt, or, ilike } from "drizzle-orm";
+import { eq, and, gt, or, ilike, sql } from "drizzle-orm";
 import { startGooglePlacesSearch, searchInstagram, scrapeLinkedInComments, apifyClient } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
 import { scrapeWebsiteContact } from "@/lib/integrations/scraper";
@@ -348,7 +348,8 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = profile?.role === "super_admin";
 
-  /* Check plan limits - Free: 1 search/day per user. Super admin bypass. */
+  /* Check plan limits - Free: 1 search/day per user + referral credits. Super admin bypass. */
+  let consumesCredit = false;
   if (!isSuperAdmin) {
     const limits = await getPlanLimits(orgId, user.id);
     if (!limits.canSearch) {
@@ -356,10 +357,14 @@ export async function POST(request: Request) {
         {
           error: limits.trialExpired
             ? "Tu prueba gratuita terminó. Upgrade a Pro para seguir buscando."
-            : "Alcanzaste tu búsqueda diaria. Volvé mañana o upgrade a Pro para búsquedas ilimitadas.",
+            : "Alcanzaste tu búsqueda diaria. Referí amigos para ganar más búsquedas o upgrade a Pro.",
         },
         { status: 429 }
       );
+    }
+    /* Free user searching beyond the daily free one consumes a referral credit. */
+    if (limits.plan === "free" && (limits.usedToday ?? 0) >= 1) {
+      consumesCredit = true;
     }
   }
 
@@ -367,6 +372,13 @@ export async function POST(request: Request) {
     .insert(searches)
     .values({ orgId, createdBy: user.id, keywords, location, channels, status: "running" })
     .returning();
+
+  if (consumesCredit) {
+    await db
+      .update(profiles)
+      .set({ creditsUsed: sql`${profiles.creditsUsed} + 1` })
+      .where(eq(profiles.id, user.id));
+  }
 
   await runPipeline(search.id, orgId, keywords, location, channels, linkedinUrls);
 
