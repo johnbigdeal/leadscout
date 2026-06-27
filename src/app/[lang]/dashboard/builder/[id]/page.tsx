@@ -377,6 +377,7 @@ export default function BuilderPage() {
           onDeviceChange={setDevice}
           showAI={showAI}
           onShowAIChange={setShowAI}
+          plan={plan}
         />
       </div>
 

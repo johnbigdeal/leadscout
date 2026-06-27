@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { Logo } from "@/components/Logo";
 import {
   Search,
   BarChart3,
@@ -8,7 +9,6 @@ import {
   MapPin,
   ArrowRight,
   CheckCircle2,
-  Zap,
   Shield,
   DollarSign,
   Sparkles,
@@ -78,9 +78,8 @@ export default function HomePage() {
       {/* Navbar */}
       <header className="sticky top-0 z-50 border-b border-zinc-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-zinc-900">
-            <Zap className="h-5 w-5 text-zinc-900" />
-            {t("appName")}
+          <Link href="/" className="flex items-center" aria-label={t("appName")}>
+            <Logo height={30} priority />
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <a href="#como" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 md:inline-block">
@@ -406,7 +405,8 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-100 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-zinc-500">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 text-center text-sm text-zinc-500">
+          <Logo height={26} />
           <p>
             © {new Date().getFullYear()} LeadScout. Hecho para equipos de ventas en LATAM.
           </p>

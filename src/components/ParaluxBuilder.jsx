@@ -285,7 +285,7 @@ function normalizeImage(img) {
   return { url: img.url || "", author: img.author, authorUrl: img.authorUrl, unsplashUrl: img.unsplashUrl };
 }
 
-export default function ParaluxBuilder({ initialData, onChange, device, onDeviceChange, showAI, onShowAIChange }) {
+export default function ParaluxBuilder({ initialData, onChange, device, onDeviceChange, showAI, onShowAIChange, plan = "free" }) {
   const normalizedInitial = initialData
     ? {
         ...initialData,
@@ -306,12 +306,13 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
   /* debounced preview generation + onChange */
   useEffect(() => {
     const t = setTimeout(() => {
-      const html = generateHTML(d);
+      const showBadge = plan === "pro" ? d.hideBadge !== true : true;
+      const html = generateHTML(d, { showBadge });
       setPreview(html);
       if (onChange) onChange(d, html);
     }, 280);
     return () => clearTimeout(t);
-  }, [d]);
+  }, [d, plan]);
 
   /* services / gallery helpers */
   const addService = () => set("services", [...(d.services || []), { title: "", desc: "" }]);
@@ -536,6 +537,34 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                         style={{ border: "none", padding: 0 }}
                       ><i /></button>
                     </div>
+                  </div>
+
+                  <div className="px-field">
+                    <span className="px-label">
+                      {'Insignia "Hecho con LeadScout"'}
+                      {plan !== "pro" && (
+                        <span style={{ marginLeft: 6, fontSize: ".7rem", opacity: 0.7 }}>🔒 Pro</span>
+                      )}
+                    </span>
+                    <div className="px-toggle">
+                      <span style={{ fontSize: ".88rem" }}>
+                        {plan === "pro" && d.hideBadge ? "Oculta" : "Visible"}
+                      </span>
+                      <button
+                        type="button"
+                        className={`px-switch ${!(plan === "pro" && d.hideBadge) ? "on" : ""}`}
+                        aria-pressed={!(plan === "pro" && d.hideBadge)}
+                        aria-label="Mostrar insignia Hecho con LeadScout"
+                        disabled={plan !== "pro"}
+                        onClick={() => { if (plan === "pro") set("hideBadge", !d.hideBadge); }}
+                        style={{ border: "none", padding: 0, cursor: plan === "pro" ? "pointer" : "not-allowed", opacity: plan === "pro" ? 1 : 0.55 }}
+                      ><i /></button>
+                    </div>
+                    <p className="px-hint">
+                      {plan === "pro"
+                        ? "Como usuario Pro podés ocultar la insignia de LeadScout en tus sitios publicados."
+                        : "Los sitios del plan Free siempre muestran la insignia de LeadScout. Mejorá a Pro para ocultarla."}
+                    </p>
                   </div>
                 </>
               )}
