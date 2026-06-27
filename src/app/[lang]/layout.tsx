@@ -1,6 +1,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { Toaster } from "sonner";
 import { routing } from "@/i18n/routing";
 
 type Props = {
@@ -20,12 +21,13 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 
 export default async function LocaleLayout({ children, params }: Props) {
   const { lang } = await params;
-  if (!routing.locales.includes(lang as "es" | "pt-BR")) notFound();
+  if (!routing.locales.includes(lang as "es")) notFound();
 
   const messages = await getMessages();
   return (
     <NextIntlClientProvider messages={messages}>
       {children}
+      <Toaster richColors position="top-center" />
     </NextIntlClientProvider>
   );
 }

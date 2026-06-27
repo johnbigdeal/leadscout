@@ -54,7 +54,7 @@ Buscador inteligente de prospectos multi-canal con CRM Kanban, panel de ventas, 
 
 ### Otros
 - **Magic links** — compartir resultados de búsqueda públicamente sin login
-- **i18n** — español (es) y portugués brasileño (pt-BR)
+- **Idioma** — español únicamente (next-intl con locale `es`)
 - **Deploy en Vercel** — API routes con `maxDuration = 300` para scraping síncrono
 
 ---
@@ -72,7 +72,8 @@ Buscador inteligente de prospectos multi-canal con CRM Kanban, panel de ventas, 
 | Scraping | Apify SDK (actores de terceros) |
 | Images | Unsplash API |
 | DNS | Cloudflare API (manual token) |
-| i18n | next-intl |
+| i18n | next-intl (solo `es`) |
+| Toasts | sonner |
 | Charts | Recharts (PieChart donut) |
 | Icons | Lucide React v1.21.0 |
 
@@ -229,7 +230,7 @@ Dashboard Layout → Server Component
 ```
 src/
   app/
-    [lang]/                 # i18n routing (es, pt-BR)
+    [lang]/                 # i18n routing (solo es)
       auth/                 # Sign-in, sign-up, forgot-password, magic-link, confirm
       dashboard/
         crm/                # CRM Kanban
@@ -297,6 +298,8 @@ src/
 | GET | `/api/images/search` | Buscar imágenes Unsplash |
 | GET/POST | `/api/cloudflare/connect` | Conectar Cloudflare |
 | GET | `/api/cloudflare/zones` | Listar zonas Cloudflare |
+| GET/POST/DELETE | `/api/cloudflare/domains` | Subdominios. `DELETE ?id=` borra uno; `DELETE ?cleanup=unused` limpia los huérfanos |
+| GET | `/site/[domain]` | Sirve el site publicado como HTML real (route handler) |
 
 ---
 
@@ -315,7 +318,8 @@ src/
 - Todas las API routes usan `export const dynamic = "force-dynamic"`
 - Auth vía `requireAuth(request)` desde `@/lib/auth` (no duplicar)
 - Todo en USD en la base de datos; conversión en la UI con `CurrencyContext`
-- i18n: strings en `messages/es.json` y `messages/pt-BR.json`
+- Idioma: español únicamente — strings en `messages/es.json` (no agregar otros locales)
+- Feedback asíncrono con toasts de `sonner` (`<Toaster>` montado en `[lang]/layout.tsx`); no usar `alert()`
 - Componentes UI en `src/components/ui/` (shadcn/ui v4)
 - Zod v4: usar `result.error.issues` (NO `.errors`)
 

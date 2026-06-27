@@ -11,6 +11,7 @@ import {
 import { Plus, Trash2, Globe, CheckCircle2, Loader2, Link2, LogIn, KeyRound, Crown, Zap } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { FreeBadge, UpgradeButton } from "@/components/plan-badges";
+import { toast } from "sonner";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -52,6 +53,7 @@ export default function DomainsSettings() {
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [subdomain, setSubdomain] = useState("");
   const [addingDomain, setAddingDomain] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [oauthMsg, setOauthMsg] = useState<string | null>(null);
   const [plan, setPlan] = useState<string>("free");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -102,33 +104,52 @@ export default function DomainsSettings() {
   async function toggleAvailableDomain(id: string, isActive: boolean) {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch(`/api/domains/available?id=${id}`, { method: "PATCH", headers, body: JSON.stringify({ isActive }) });
-    fetchAvailableDomainsList();
+    const res = await fetch(`/api/domains/available?id=${id}`, { method: "PATCH", headers, body: JSON.stringify({ isActive }) });
+    if (res.ok) {
+      fetchAvailableDomainsList();
+    } else {
+      toast.error("No se pudo actualizar el dominio.");
+    }
   }
 
   async function setDefaultDomain(id: string) {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch(`/api/domains/available?id=${id}`, { method: "PATCH", headers, body: JSON.stringify({ isDefault: true }) });
-    fetchAvailableDomainsList();
+    const res = await fetch(`/api/domains/available?id=${id}`, { method: "PATCH", headers, body: JSON.stringify({ isDefault: true }) });
+    if (res.ok) {
+      toast.success("Dominio predeterminado actualizado");
+      fetchAvailableDomainsList();
+    } else {
+      toast.error("No se pudo establecer el dominio predeterminado.");
+    }
   }
 
   async function addAvailableDomain(zone: Zone) {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch("/api/domains/available", {
+    const res = await fetch("/api/domains/available", {
       method: "POST",
       headers,
       body: JSON.stringify({ domain: zone.name, zoneId: zone.id }),
     });
-    fetchAvailableDomainsList();
+    if (res.ok) {
+      toast.success("Dominio agregado");
+      fetchAvailableDomainsList();
+    } else {
+      toast.error("No se pudo agregar el dominio.");
+    }
   }
 
   async function deleteAvailableDomain(id: string) {
     if (!confirm("¿Eliminar este dominio de la lista?")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/domains/available?id=${id}`, { method: "DELETE", headers });
-    fetchAvailableDomainsList();
+    const res = await fetch(`/api/domains/available?id=${id}`, { method: "DELETE", headers });
+    if (res.ok) {
+      toast.success("Dominio eliminado");
+      fetchAvailableDomainsList();
+    } else {
+      toast.error("No se pudo eliminar el dominio.");
+    }
   }
 
   useEffect(() => {
@@ -149,18 +170,31 @@ export default function DomainsSettings() {
   async function handleConnect() {
     if (!apiToken || !accountId) return;
     setConnecting(true);
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    const res = await fetch("/api/cloudflare/connect", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ apiToken, accountId, email }),
-    });
-    if (res.ok) {
-      setConnected(true);
-      fetchZones();
+    setOauthMsg(null);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/cloudflare/connect", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ apiToken, accountId, email }),
+      });
+      if (res.ok) {
+        setConnected(true);
+        setApiToken("");
+        setAccountId("");
+        setOauthMsg("Cuenta conectada correctamente ✓");
+        fetchZones();
+      } else {
+        const data = await res.json().catch(() => null);
+        const msg = data?.error || data?.detail || "No se pudo conectar la cuenta de Cloudflare.";
+        setOauthMsg(`Error: ${msg}`);
+      }
+    } catch {
+      setOauthMsg("Error: No se pudo conectar la cuenta de Cloudflare.");
+    } finally {
+      setConnecting(false);
     }
-    setConnecting(false);
   }
 
   async function addDomain() {
@@ -180,7 +214,10 @@ export default function DomainsSettings() {
     if (res.ok) {
       setShowAddDomain(false);
       setSubdomain("");
+      toast.success("Subdominio creado");
       fetchDomains();
+    } else {
+      toast.error("No se pudo crear el subdominio.");
     }
     setAddingDomain(false);
   }
@@ -188,8 +225,37 @@ export default function DomainsSettings() {
   async function deleteDomain(id: string) {
     if (!confirm("¿Eliminar este dominio?")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/cloudflare/domains?id=${id}`, { method: "DELETE", headers });
-    fetchDomains();
+    const res = await fetch(`/api/cloudflare/domains?id=${id}`, { method: "DELETE", headers });
+    if (res.ok) {
+      toast.success("Subdominio eliminado");
+      fetchDomains();
+    } else {
+      toast.error("No se pudo eliminar el subdominio.");
+    }
+  }
+
+  async function cleanupUnusedDomains() {
+    if (!confirm("¿Eliminar todos los subdominios sin usar (sin sitio asociado o no publicados)? Se borrarán sus registros DNS en Cloudflare.")) return;
+    setCleaning(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/cloudflare/domains?cleanup=unused", { method: "DELETE", headers });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(
+          data.removed > 0
+            ? `${data.removed} subdominio${data.removed === 1 ? "" : "s"} sin usar eliminado${data.removed === 1 ? "" : "s"}`
+            : "No había subdominios sin usar",
+        );
+        fetchDomains();
+      } else {
+        toast.error("No se pudieron limpiar los subdominios.");
+      }
+    } catch {
+      toast.error("No se pudieron limpiar los subdominios.");
+    } finally {
+      setCleaning(false);
+    }
   }
 
   return (
@@ -377,10 +443,22 @@ export default function DomainsSettings() {
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Subdominios creados</h3>
-              <Button size="sm" onClick={() => setShowAddDomain(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Agregar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={cleanupUnusedDomains}
+                  disabled={cleaning || domains.length === 0}
+                  title="Eliminar subdominios sin sitio asociado o no publicados"
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" />
+                  {cleaning ? "Limpiando…" : "Limpiar sin usar"}
+                </Button>
+                <Button size="sm" onClick={() => setShowAddDomain(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Agregar
+                </Button>
+              </div>
             </div>
             <div className="mt-3 space-y-2">
               {domains.length === 0 ? (

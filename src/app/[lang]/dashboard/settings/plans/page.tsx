@@ -44,6 +44,14 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const formatPrice = (price: number, currency: string) =>
+    new Intl.NumberFormat("es", {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: 0,
+    }).format(price);
 
   useEffect(() => {
     fetchPlans();
@@ -68,17 +76,32 @@ export default function PlansPage() {
   }, [searchParams, router]);
 
   async function fetchPlans() {
+    setError("");
     const headers = await getAuthHeaders();
-    const res = await fetch("/api/billing/plans", { headers });
-    if (res.ok) {
-      const data = await res.json();
-      setPlans(data.plans);
-      setCurrentPlan(data.currentPlan);
-      setTrialExpired(data.trialExpired || false);
-      setTrialEndsAt(data.trialEndsAt || null);
-      setDaysUntilDeletion(data.daysUntilDeletion || null);
+    try {
+      const res = await fetch("/api/billing/plans", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setPlans(data.plans);
+        setCurrentPlan(data.currentPlan);
+        setTrialExpired(data.trialExpired || false);
+        setTrialEndsAt(data.trialEndsAt || null);
+        setDaysUntilDeletion(data.daysUntilDeletion || null);
+      } else {
+        setError("No pudimos cargar los planes. Recargá la página e intentá de nuevo.");
+      }
+    } catch {
+      setError("No pudimos cargar los planes. Revisá tu conexión e intentá de nuevo.");
     }
     setLoading(false);
+  }
+
+  function handleDowngrade() {
+    window.location.href =
+      "mailto:johnbigdeal@gmail.com?subject=" +
+      encodeURIComponent("Solicitud de downgrade a Free") +
+      "&body=" +
+      encodeURIComponent("Hola, quiero bajar mi plan de Pro a Free. Mi cuenta es: ");
   }
 
   async function handleSubscribe(planId: string) {
@@ -97,8 +120,8 @@ export default function PlansPage() {
         window.location.href = data.url;
       }
     } else {
-      const err = await res.json();
-      setMessage(err.error || "Error al procesar la suscripción");
+      const err = await res.json().catch(() => ({}));
+      setError(err.error || "Error al procesar la suscripción. Intentá de nuevo.");
     }
     setSubscribing(false);
   }
@@ -121,8 +144,21 @@ export default function PlansPage() {
       </div>
 
       {message && (
-        <div className="mb-6 rounded-lg bg-primary/10 p-4 text-center text-sm text-primary">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-6 rounded-lg bg-primary/10 p-4 text-center text-sm text-primary"
+        >
           {message}
+        </div>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-lg bg-destructive/10 p-4 text-center text-sm text-destructive"
+        >
+          {error}
         </div>
       )}
 
@@ -197,11 +233,11 @@ export default function PlansPage() {
                   ) : (
                     <>
                       <span className="text-4xl font-bold">
-                        ${plan.price}
+                        {formatPrice(plan.price, plan.currency)}
                       </span>
                       <span className="text-muted-foreground">
                         {" "}
-                        USD/{plan.interval === "month" ? "mes" : "año"}
+                        {plan.currency || "USD"}/{plan.interval === "month" ? "mes" : "año"}
                       </span>
                     </>
                   )}
@@ -252,7 +288,12 @@ export default function PlansPage() {
                       Plan actual
                     </Button>
                   ) : plan.id === "free" ? (
-                    <Button className="w-full" variant="outline" disabled={currentPlan !== "pro"}>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      disabled={currentPlan !== "pro"}
+                      onClick={currentPlan === "pro" ? handleDowngrade : undefined}
+                    >
                       {currentPlan === "pro" ? "Downgrade" : "Plan actual"}
                     </Button>
                   ) : (

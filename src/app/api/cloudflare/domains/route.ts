@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cloudflareAccounts, customDomains, memberships, websites } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { removeDomainFromVercel } from "@/lib/vercel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,46 @@ async function cfRequest(token: string, path: string, opts?: RequestInit) {
   const data = await res.json();
   if (!data.success) throw new Error(data.errors?.[0]?.message || "Cloudflare API error");
   return data.result;
+}
+
+/* Delete a DNS record looked up by its name (used for wildcard-based subdomains
+   that don't have a stored dnsRecordId). */
+async function deleteDnsRecordByName(token: string, zoneId: string, name: string, type: string) {
+  try {
+    const records = await cfRequest(token, `/zones/${zoneId}/dns_records?name=${name}&type=${type}`);
+    if (records && records.length > 0) {
+      await cfRequest(token, `/zones/${zoneId}/dns_records/${records[0].id}`, { method: "DELETE" });
+    }
+  } catch (e: any) {
+    console.error("Failed to delete DNS record by name:", e.message);
+  }
+}
+
+/* Remove a single custom-domain row everywhere: Cloudflare DNS, Vercel, and DB. */
+async function removeCustomDomain(domain: typeof customDomains.$inferSelect, token: string | undefined) {
+  if (token && domain.zoneId) {
+    if (domain.dnsRecordId) {
+      try {
+        await cfRequest(token, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, { method: "DELETE" });
+      } catch (e: any) {
+        console.error("Failed to delete Cloudflare DNS record:", e.message);
+      }
+    } else if (domain.subdomain && domain.rootDomain) {
+      await deleteDnsRecordByName(token, domain.zoneId, `${domain.subdomain}.${domain.rootDomain}`, "CNAME");
+    }
+  }
+  try {
+    await removeDomainFromVercel(domain.domain);
+  } catch (e: any) {
+    console.error("Failed to remove domain from Vercel:", e.message);
+  }
+  await db.delete(customDomains).where(eq(customDomains.id, domain.id));
+  if (domain.websiteId) {
+    await db
+      .update(websites)
+      .set({ subdomain: null, domain: null })
+      .where(eq(websites.id, domain.websiteId));
+  }
 }
 
 /* GET /api/cloudflare/domains */
@@ -133,6 +174,35 @@ export async function DELETE(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+
+  /* Bulk cleanup: remove subdomains that aren't in use (no website linked, or
+     the linked website was deleted / is no longer published). */
+  if (searchParams.get("cleanup") === "unused") {
+    const [allDomains, orgWebsites, cfRows] = await Promise.all([
+      db.select().from(customDomains).where(eq(customDomains.orgId, ctx.orgId)),
+      db.select({ id: websites.id, status: websites.status }).from(websites).where(eq(websites.orgId, ctx.orgId)),
+      db
+        .select({ apiToken: cloudflareAccounts.apiToken })
+        .from(cloudflareAccounts)
+        .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+        .limit(1),
+    ]);
+
+    const publishedWebsiteIds = new Set(
+      orgWebsites.filter((w) => w.status === "published").map((w) => w.id),
+    );
+    const unused = allDomains.filter(
+      (d) => !d.websiteId || !publishedWebsiteIds.has(d.websiteId),
+    );
+
+    const token = cfRows[0]?.apiToken;
+    for (const domain of unused) {
+      await removeCustomDomain(domain, token);
+    }
+
+    return NextResponse.json({ success: true, removed: unused.length });
+  }
+
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 

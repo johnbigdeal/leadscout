@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Plus, Globe, ExternalLink, Pencil, Trash2, RefreshCw, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -35,6 +36,7 @@ export default function WebsitesPage() {
   const [loading, setLoading] = useState(true);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   async function fetchWebsites() {
     const headers = await getAuthHeaders();
@@ -48,34 +50,53 @@ export default function WebsitesPage() {
   }, []);
 
   async function createWebsite() {
-    if (!newName.trim()) return;
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    const res = await fetch("/api/websites", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ name: newName.trim() }),
-    });
-    if (res.ok) {
-      const website = await res.json();
-      setShowNewDialog(false);
-      setNewName("");
-      router.push(`/dashboard/builder/${website.id}`);
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/websites", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (res.ok) {
+        const website = await res.json();
+        setShowNewDialog(false);
+        setNewName("");
+        router.push(`/dashboard/builder/${website.id}`);
+      } else {
+        toast.error("No se pudo crear el website. Intentá de nuevo.");
+      }
+    } catch {
+      toast.error("No se pudo crear el website. Intentá de nuevo.");
+    } finally {
+      setCreating(false);
     }
   }
 
   async function deleteWebsite(id: string) {
     if (!confirm("¿Eliminar este website?")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/websites/${id}`, { method: "DELETE", headers });
-    fetchWebsites();
+    const res = await fetch(`/api/websites/${id}`, { method: "DELETE", headers });
+    if (res.ok) {
+      toast.success("Website eliminado");
+      fetchWebsites();
+    } else {
+      toast.error("No se pudo eliminar el website.");
+    }
   }
 
   async function unpublishWebsite(id: string) {
     if (!confirm("¿Despublicar este website? El subdominio dejará de funcionar.")) return;
     const headers = await getAuthHeaders();
     const res = await fetch(`/api/websites/${id}/unpublish`, { method: "POST", headers });
-    if (res.ok) fetchWebsites();
+    if (res.ok) {
+      toast.success("Website despublicado");
+      fetchWebsites();
+    } else {
+      toast.error("No se pudo despublicar el website.");
+    }
   }
 
   return (
@@ -148,6 +169,8 @@ export default function WebsitesPage() {
                 )}
                 <button
                   onClick={() => deleteWebsite(w.id)}
+                  aria-label="Eliminar website"
+                  title="Eliminar website"
                   className="ml-auto rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -171,6 +194,12 @@ export default function WebsitesPage() {
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newName.trim() && !creating) {
+                    e.preventDefault();
+                    createWebsite();
+                  }
+                }}
                 placeholder="ej. Landing Pedro Barber"
                 className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
@@ -179,8 +208,8 @@ export default function WebsitesPage() {
               <Button variant="outline" className="flex-1" onClick={() => setShowNewDialog(false)}>
                 Cancelar
               </Button>
-              <Button className="flex-1" onClick={createWebsite} disabled={!newName.trim()}>
-                Crear
+              <Button className="flex-1" onClick={createWebsite} disabled={!newName.trim() || creating}>
+                {creating ? "Creando..." : "Crear"}
               </Button>
             </div>
           </div>

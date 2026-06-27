@@ -71,7 +71,7 @@ export default function ConfirmEmailPage() {
                 <XCircle className="h-6 w-6 text-red-600" />
               </div>
               <CardTitle className="text-center text-xl">Error</CardTitle>
-              <CardDescription className="text-center">{message}</CardDescription>
+              <CardDescription role="alert" className="text-center">{message}</CardDescription>
             </>
           )}
         </CardHeader>

@@ -7,6 +7,8 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -19,7 +21,9 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { toast } from "sonner";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -326,7 +330,7 @@ function LeadDetailDialog({
     } else {
       const err = await res.text();
       console.error("Error al agregar servicio:", res.status, err);
-      alert("No se pudo agregar el servicio. Verificá la consola.");
+      toast.error("No se pudo agregar el servicio. Intentá de nuevo.");
     }
   }
 
@@ -348,7 +352,7 @@ function LeadDetailDialog({
       onServiceChange();
     } else {
       console.error("Error al eliminar servicio:", res.status, await res.text());
-      alert("No se pudo eliminar el servicio.");
+      toast.error("No se pudo eliminar el servicio. Intentá de nuevo.");
     }
   }
 
@@ -717,8 +721,12 @@ export default function CrmPage() {
   const [plan, setPlan] = useState<string>("free");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState("Pipelines ilimitados");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const fetchPipelines = useCallback(async () => {
@@ -738,10 +746,21 @@ export default function CrmPage() {
   }, []);
 
   const fetchLeads = useCallback(async (pipelineId?: string) => {
-    const headers = await getAuthHeaders();
-    const url = pipelineId ? `/api/leads?pipelineId=${pipelineId}` : "/api/leads";
-    const res = await fetch(url, { headers });
-    if (res.ok) setLeads(await res.json());
+    setLoadError(false);
+    try {
+      const headers = await getAuthHeaders();
+      const url = pipelineId ? `/api/leads?pipelineId=${pipelineId}` : "/api/leads";
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        setLeads(await res.json());
+      } else {
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   async function fetchPlan() {
@@ -817,7 +836,7 @@ export default function CrmPage() {
     const res = await fetch(`/api/leads/${leadId}`, { method: "PATCH", headers, body: JSON.stringify({ stage: newStage }) });
     if (!res.ok) {
       console.error("PATCH failed:", res.status, await res.text());
-      alert("Error al cambiar etapa. Verificá la consola.");
+      toast.error("No se pudo cambiar la etapa. Intentá de nuevo.");
       setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, stage: prevStage } : l));
       return;
     }
@@ -826,7 +845,7 @@ export default function CrmPage() {
       method: "POST", headers,
       body: JSON.stringify({ type: "stage_change", body: `Cambio de etapa: ${prevStage} → ${newStage}` }),
     }).catch(() => {});
-    fetchLeads();
+    fetchLeads(activePipeline?.id);
   }
 
   async function handleStageChange(stage: string) {
@@ -839,7 +858,7 @@ export default function CrmPage() {
     const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ stage }) });
     if (!res.ok) {
       console.error("PATCH failed:", res.status, await res.text());
-      alert("Error al cambiar etapa. Verificá la consola.");
+      toast.error("No se pudo cambiar la etapa. Intentá de nuevo.");
       setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, stage: prevStage } : l));
       setSelectedLead((prev) => prev ? { ...prev, stage: prevStage } : null);
       return;
@@ -849,7 +868,7 @@ export default function CrmPage() {
       method: "POST", headers,
       body: JSON.stringify({ type: "stage_change", body: `Cambio de etapa: ${prevStage} → ${stage}` }),
     }).catch(() => {});
-    fetchLeads();
+    fetchLeads(activePipeline?.id);
   }
 
   async function handleTagsChange(tags: string[]) {
@@ -891,7 +910,7 @@ export default function CrmPage() {
     const res = await fetch(`/api/leads/${leadId}`, { method: "PATCH", headers, body: JSON.stringify({ stage }) });
     if (!res.ok) {
       console.error("PATCH failed:", res.status, await res.text());
-      alert("Error al cambiar etapa. Verificá la consola.");
+      toast.error("No se pudo cambiar la etapa. Intentá de nuevo.");
       setLeads(prevLeads);
       return;
     }
@@ -900,7 +919,7 @@ export default function CrmPage() {
       method: "POST", headers,
       body: JSON.stringify({ type: "stage_change", body: `Cambio rápido de etapa → ${stage}` }),
     }).catch(() => {});
-    fetchLeads();
+    fetchLeads(activePipeline?.id);
   }
 
   async function handlePipelineChange(pipelineId: string | null) {
@@ -913,7 +932,7 @@ export default function CrmPage() {
     const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "PATCH", headers, body: JSON.stringify({ pipelineId, stage: "new" }) });
     if (!res.ok) {
       console.error("PATCH pipeline failed:", res.status, await res.text());
-      alert("Error al cambiar pipeline.");
+      toast.error("No se pudo cambiar el pipeline. Intentá de nuevo.");
       setLeads((prev) => prev.map((l) => l.id === selectedLead.id ? { ...l, pipelineId: prevPipelineId } : l));
       setSelectedLead((prev) => prev ? { ...prev, pipelineId: prevPipelineId } : null);
       return;
@@ -924,10 +943,15 @@ export default function CrmPage() {
   async function handleDeleteLead() {
     if (!selectedLead) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/leads/${selectedLead.id}`, { method: "DELETE", headers });
+    const res = await fetch(`/api/leads/${selectedLead.id}`, { method: "DELETE", headers });
+    if (!res.ok) {
+      toast.error("No se pudo eliminar el prospecto. Intentá de nuevo.");
+      return;
+    }
     setLeads((prev) => prev.filter((l) => l.id !== selectedLead.id));
     setOpenDetail(false);
     setSelectedLead(null);
+    toast.success("Prospecto eliminado");
   }
 
   async function handleCreateWebsite(leadId: string, businessId?: string) {
@@ -947,7 +971,7 @@ export default function CrmPage() {
       router.push(`/dashboard/builder/${website.id}`);
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Error al crear website");
+      toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
     }
   }
 
@@ -987,7 +1011,7 @@ export default function CrmPage() {
               return;
             }
             setShowCreatePipeline(true);
-          }} title="Crear pipeline">
+          }} title="Crear pipeline" aria-label="Crear pipeline">
             <Plus className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground ml-2">
@@ -996,26 +1020,53 @@ export default function CrmPage() {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
+      {isLoading ? (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {stages.map((stage) => (
-            <KanbanColumn key={stage} stage={stage} leads={getStageLeads(stage)} onLeadClick={handleLeadClick} onQuickStage={handleQuickStage} />
+            <div key={stage} className="w-72 shrink-0">
+              <div className="mb-3 h-5 w-24 animate-pulse rounded bg-zinc-200" />
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-24 animate-pulse rounded-xl bg-zinc-100" />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-        <DragOverlay>
-          {activeLead && (
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
-              <p className="font-semibold text-zinc-900">{activeLead.business?.name ?? "—"}</p>
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+      ) : loadError ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+          <p className="text-sm text-muted-foreground">No pudimos cargar tus prospectos.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3"
+            onClick={() => { setIsLoading(true); fetchLeads(activePipeline?.id); }}
+          >
+            Reintentar
+          </Button>
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {stages.map((stage) => (
+              <KanbanColumn key={stage} stage={stage} leads={getStageLeads(stage)} onLeadClick={handleLeadClick} onQuickStage={handleQuickStage} />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeLead && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
+                <p className="font-semibold text-zinc-900">{activeLead.business?.name ?? "—"}</p>
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <LeadDetailDialog
         lead={selectedLead}
@@ -1091,7 +1142,7 @@ export default function CrmPage() {
                     setUpgradeFeature("Pipelines ilimitados");
                     setShowUpgradeModal(true);
                   } else {
-                    alert(err.error || "Error al crear pipeline");
+                    toast.error(err.error || "No se pudo crear el pipeline. Intentá de nuevo.");
                   }
                 }
               }}

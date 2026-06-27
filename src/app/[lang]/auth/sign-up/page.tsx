@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
@@ -123,7 +123,9 @@ export default function SignUpPage() {
               <Label htmlFor="email">{t("email")}</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -139,6 +141,8 @@ export default function SignUpPage() {
               <Label htmlFor="orgName">{t("orgName")}</Label>
               <Input
                 id="orgName"
+                name="orgName"
+                autoComplete="organization"
                 value={orgName}
                 onChange={(e) => {
                   setOrgName(e.target.value);
@@ -155,7 +159,9 @@ export default function SignUpPage() {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -168,7 +174,7 @@ export default function SignUpPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -177,7 +183,7 @@ export default function SignUpPage() {
             </div>
 
             {authError && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                 {authError}
               </div>
             )}
@@ -196,9 +202,9 @@ export default function SignUpPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {t("hasAccount")}{" "}
-            <a href="/auth/sign-in" className="font-medium text-primary hover:underline">
+            <Link href="/auth/sign-in" className="font-medium text-primary hover:underline">
               {ct("signIn")}
-            </a>
+            </Link>
           </p>
         </CardContent>
       </Card>

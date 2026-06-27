@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
@@ -64,9 +65,9 @@ export default function MagicLinkPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <a href="/auth/sign-in" className="block text-center text-sm text-primary hover:underline">
+            <Link href="/auth/sign-in" className="block text-center text-sm text-primary hover:underline">
               Volver a iniciar sesión
-            </a>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -91,7 +92,9 @@ export default function MagicLinkPage() {
               <Label htmlFor="email">{t("email")}</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
@@ -99,7 +102,7 @@ export default function MagicLinkPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -117,9 +120,9 @@ export default function MagicLinkPage() {
           </form>
 
           <div className="mt-4 space-y-2 text-center">
-            <a href="/auth/sign-in" className="block text-sm text-primary hover:underline">
+            <Link href="/auth/sign-in" className="block text-sm text-primary hover:underline">
               Volver a iniciar sesión con contraseña
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>

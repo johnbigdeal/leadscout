@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink } from "lucide-react";
 import { BusinessCard, type Business } from "@/components/business-card";
+import { toast } from "sonner";
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -187,14 +188,32 @@ export default function ResultsPage() {
     const body: Record<string, unknown> = { businessIds: ids };
     if (opts?.pipelineId) body.pipelineId = opts.pipelineId;
     if (opts?.categoryId) body.categoryId = opts.categoryId;
-    await fetch("/api/leads", { method: "POST", headers, body: JSON.stringify(body) });
+
+    // Optimistic update
+    const newlyAdded = ids.filter((id) => !leadIds.has(id));
+    const wasSelected = !Array.isArray(businessIds) && selected?.id === businessIds;
     setLeadIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
-    if (!Array.isArray(businessIds) && selected?.id === businessIds) {
+    if (wasSelected) {
       setSelected((prev) => prev ? { ...prev, isLead: true } : null);
+    }
+
+    const res = await fetch("/api/leads", { method: "POST", headers, body: JSON.stringify(body) });
+    if (!res.ok) {
+      // Revert optimistic change on failure
+      setLeadIds((prev) => {
+        const next = new Set(prev);
+        newlyAdded.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (wasSelected) {
+        setSelected((prev) => prev ? { ...prev, isLead: false } : null);
+      }
+      toast.error("No se pudo agregar a CRM. Intentá de nuevo.");
+      return;
     }
   }
 
@@ -460,11 +479,12 @@ export default function ResultsPage() {
           ) : (
             <>
               <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-zinc-50">
                       <TableHead className="w-10">
-                        <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} />
+                        <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} aria-label="Seleccionar todos" />
                       </TableHead>
                       <TableHead className="w-14 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("score")}</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("name")}</TableHead>
@@ -489,7 +509,7 @@ export default function ResultsPage() {
                           className={`cursor-pointer transition-colors ${highlight ? "bg-accent/5" : "hover:bg-zinc-50"}`}
                           onClick={() => openCard(biz)}>
                           <TableCell className="p-3" onClick={(e) => { e.stopPropagation(); toggleSelect(biz.id); }}>
-                            <Checkbox checked={highlight} onCheckedChange={() => toggleSelect(biz.id)} />
+                            <Checkbox checked={highlight} onCheckedChange={() => toggleSelect(biz.id)} aria-label={`Seleccionar ${biz.name}`} />
                           </TableCell>
                           <TableCell className="p-3">
                             <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${
@@ -591,6 +611,7 @@ export default function ResultsPage() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               <div className="mt-4 flex items-center justify-between">
@@ -619,7 +640,7 @@ export default function ResultsPage() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
-        <DialogContent className="max-w-lg overflow-y-auto p-0 gap-0">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="font-display text-lg">{t("contactInfo")}</DialogTitle>
           </DialogHeader>

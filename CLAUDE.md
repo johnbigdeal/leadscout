@@ -39,9 +39,11 @@ npm run dev
 1. **Auth:** Usar `requireAuth(request)` desde `@/lib/auth`. Nunca duplicar.
 2. **Middleware:** Protege `/dashboard/*` y `/api/*` a nivel edge.
 3. **Cloudflare DNS:** Siempre `proxied: false` (gris, NO naranja). Vercel necesita ver el CNAME.
-4. **Builder preview:** Usar `srcDoc={html}` (NO blob URLs).
+4. **Builder preview:** Usar `srcDoc={html}` (NO blob URLs). Pero el **site público** se sirve como documento HTML real desde `site/[domain]/route.ts` (NO iframe — SEO/compartir).
 5. **Zod v4:** Usar `.issues` en vez de `.errors`.
 6. **Moneda:** Todo en USD en DB. Conversión en UI.
+7. **Idioma:** Español únicamente (`messages/es.json`). Nunca agregar portugués u otros locales.
+8. **Feedback:** Chequear `res.ok` y usar `toast` de `sonner` (no `alert()`).
 
 ---
 
