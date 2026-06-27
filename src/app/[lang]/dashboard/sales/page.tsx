@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
+import { CURRENCIES, formatMoney } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ type Service = {
   id: string;
   name: string;
   defaultCost: string;
+  currency?: string;
   recurrence: string;
 };
 
@@ -152,6 +154,7 @@ export default function SalesPage() {
   const [editService, setEditService] = useState<Service | null>(null);
   const [serviceName, setServiceName] = useState("");
   const [serviceCost, setServiceCost] = useState("");
+  const [serviceCurrency, setServiceCurrency] = useState(currency || "USD");
   const [serviceRecurrence, setServiceRecurrence] = useState("one_time");
   const [plan, setPlan] = useState<string>("free");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -207,7 +210,7 @@ export default function SalesPage() {
     try {
       const headers = await getAuthHeaders();
       headers["Content-Type"] = "application/json";
-      const body = { name: serviceName.trim(), defaultCost: serviceCost || "0", recurrence: serviceRecurrence };
+      const body = { name: serviceName.trim(), defaultCost: serviceCost || "0", currency: serviceCurrency || "USD", recurrence: serviceRecurrence };
       let res: Response;
       if (editService) {
         res = await fetch(`/api/services/${editService.id}`, { method: "PUT", headers, body: JSON.stringify(body) });
@@ -245,6 +248,7 @@ export default function SalesPage() {
     setEditService(null);
     setServiceName("");
     setServiceCost("");
+    setServiceCurrency(currency || "USD");
     setShowServiceDialog(true);
   }
 
@@ -252,6 +256,7 @@ export default function SalesPage() {
     setEditService(s);
     setServiceName(s.name);
     setServiceCost(s.defaultCost);
+    setServiceCurrency(s.currency || "USD");
     setServiceRecurrence(s.recurrence || "one_time");
     setShowServiceDialog(true);
   }
@@ -399,11 +404,11 @@ export default function SalesPage() {
                       {RECURRENCE_LABELS[s.recurrence] || s.recurrence}
                     </Badge>
                   </div>
-                  <p className="text-xs text-zinc-500">Costo por defecto: {fmt(Number(s.defaultCost))}</p>
+                  <p className="text-xs text-zinc-500">Costo por defecto: {formatMoney(Number(s.defaultCost), s.currency || "USD")}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="border-zinc-200 text-xs">
-                    {fmt(Number(s.defaultCost))}
+                    {formatMoney(Number(s.defaultCost), s.currency || "USD")}
                   </Badge>
                   <Button variant="ghost" size="icon" onClick={() => openEditService(s)} className="h-7 w-7 text-zinc-400 hover:text-zinc-600" aria-label="Editar servicio">
                     <Pencil className="h-3.5 w-3.5" />
@@ -434,12 +439,22 @@ export default function SalesPage() {
               <Input value={serviceName} onChange={e => setServiceName(e.target.value)} placeholder="ej. Consultoría SEO" />
             </div>
             <div>
-              {/* Stored value is treated as USD on read (convertAmount assumes USD; DB stores USD),
-                  so the input is entered and labeled as USD to stay consistent. */}
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Costo por defecto (USD)
+                Costo por defecto
               </label>
-              <Input type="number" min="0" step="0.01" value={serviceCost} onChange={e => setServiceCost(e.target.value)} placeholder="0.00" />
+              <div className="flex items-center gap-2">
+                <Input type="number" min="0" step="0.01" value={serviceCost} onChange={e => setServiceCost(e.target.value)} placeholder="0.00" className="flex-1" />
+                <select
+                  value={serviceCurrency}
+                  onChange={e => setServiceCurrency(e.target.value)}
+                  aria-label="Moneda del servicio"
+                  className="h-9 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  {CURRENCIES.map(c => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">

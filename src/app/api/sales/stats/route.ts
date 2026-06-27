@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leads, leadServices, services, memberships } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { getUsdRates, toUsd } from "@/lib/exchange-rates";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,12 @@ export async function GET(request: Request) {
 
   const leadIds = orgLeads.map(l => l.id);
 
-  const svcRows = leadIds.length > 0
+  const svcRowsRaw = leadIds.length > 0
     ? await db
         .select({
           leadId: leadServices.leadId,
           cost: leadServices.cost,
+          currency: leadServices.currency,
           recurrence: leadServices.recurrence,
           serviceName: services.name,
         })
@@ -40,6 +42,15 @@ export async function GET(request: Request) {
         .innerJoin(services, eq(leadServices.serviceId, services.id))
         .where(inArray(leadServices.leadId, leadIds))
     : [];
+
+  /* Each service cost can be in a different currency — normalize to USD so the
+     aggregate totals are meaningful. The UI then converts the USD total to the
+     org's display currency via CurrencyContext. */
+  const rates = await getUsdRates();
+  const svcRows = svcRowsRaw.map((s) => ({
+    ...s,
+    cost: String(toUsd(Number(s.cost), s.currency, rates)),
+  }));
 
   const costByLead: Record<string, { cost: number; services: string[]; mrr: number }> = {};
   for (const s of svcRows) {

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const result = await requireAuth(request);
   if (result.response) return result.response;
   const ctx = result.ctx;
-  const { name, defaultCost, recurrence } = await request.json();
+  const { name, defaultCost, currency, recurrence } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
   if (!(await canCreateService(ctx.orgId))) {
     return NextResponse.json(
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
   const [svc] = await db.insert(services).values({
     orgId: ctx.orgId, name: name.trim(),
     defaultCost: String(defaultCost ?? 0),
+    currency: currency || "USD",
     recurrence: recurrence || "one_time",
   }).onConflictDoNothing().returning();
   if (!svc) return NextResponse.json({ error: "Already exists" }, { status: 409 });
