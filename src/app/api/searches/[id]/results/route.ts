@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
-import { businesses, searchBusinesses, opportunityScores, socialProfiles, businessSeo } from "@/lib/db/schema";
+import { businesses, searchBusinesses, opportunityScores, socialProfiles, businessSeo, searches, profiles } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 const supabase = createClient(
@@ -23,6 +23,25 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  /* Access control: a search's results are private to the user who created it
+     (super admins can also view). Each search belongs to its own user. */
+  const [search] = await db
+    .select({ createdBy: searches.createdBy })
+    .from(searches)
+    .where(eq(searches.id, id))
+    .limit(1);
+  if (!search) return NextResponse.json([]);
+  if (search.createdBy !== user.id) {
+    const [profile] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    if (profile?.role !== "super_admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const links = await db
