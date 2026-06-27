@@ -96,6 +96,9 @@ export default function ResultsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addPipelineId, setAddPipelineId] = useState<string>("");
   const [addCategoryId, setAddCategoryId] = useState<string>("");
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [creatingCat, setCreatingCat] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
 
@@ -233,6 +236,34 @@ export default function ResultsPage() {
     setShowAddDialog(false);
     setSelectedIds(new Set());
     setBatchIds([]);
+  }
+
+  async function createCategory() {
+    const name = newCatName.trim();
+    if (!name) return;
+    setCreatingCat(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/lead-categories", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "No se pudo crear la categoría.");
+        return;
+      }
+      const cat = await res.json();
+      setCategories((prev) => [...prev, cat].sort((a, b) => a.name.localeCompare(b.name)));
+      setAddCategoryId(cat.id);
+      setNewCatName("");
+      setShowNewCat(false);
+      toast.success("Categoría creada");
+    } finally {
+      setCreatingCat(false);
+    }
   }
 
   function openCard(biz: Business & { id: string }) {
@@ -676,16 +707,47 @@ export default function ResultsPage() {
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Categoría (opcional)
               </label>
-              <select
-                value={addCategoryId}
-                onChange={(e) => setAddCategoryId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="">Sin categoría</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={addCategoryId}
+                  onChange={(e) => setAddCategoryId(e.target.value)}
+                  className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewCat((v) => !v)}
+                  aria-label="Crear nueva categoría"
+                  title="Crear nueva categoría"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {showNewCat && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Input
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); createCategory(); } }}
+                    placeholder="Nueva categoría"
+                    className="h-9 flex-1 text-sm"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={createCategory}
+                    disabled={creatingCat || !newCatName.trim()}
+                  >
+                    {creatingCat ? "Creando..." : "Crear"}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setShowAddDialog(false)} disabled={isAdding}>
