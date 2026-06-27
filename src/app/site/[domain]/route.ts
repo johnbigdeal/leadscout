@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { websites, customDomains } from "@/lib/db/schema";
+import { websites, customDomains, subscriptions } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
 import { generateHTML } from "@/lib/paralux/generate-html";
 
@@ -42,7 +42,19 @@ export async function GET(
 
   if (!site) return notFoundResponse();
 
-  const html = generateHTML(site.data as Record<string, any>);
+  /* The "Hecho con LeadScout" badge is mandatory on Free sites. Pro sites may
+     hide it via data.hideBadge. Plan is resolved from the owning org here so it
+     cannot be bypassed by editing the stored site data. */
+  const data = site.data as Record<string, unknown>;
+  const [sub] = await db
+    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .from(subscriptions)
+    .where(eq(subscriptions.orgId, site.orgId))
+    .limit(1);
+  const isPro = sub?.plan === "pro" && sub?.status === "active";
+  const showBadge = isPro ? data.hideBadge !== true : true;
+
+  const html = generateHTML(data, { showBadge });
 
   return new Response(html, {
     status: 200,

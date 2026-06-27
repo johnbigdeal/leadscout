@@ -22,6 +22,7 @@ import {
   Gift,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/Logo";
 import { useCurrency } from "@/lib/currency-context";
 import { FreeBadge, ProBadge, SuperAdminBadge, UpgradeButton } from "@/components/plan-badges";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -117,18 +118,13 @@ export default function DashboardClient({
       <>
         <div className="flex h-16 items-center border-b border-sidebar-border px-4">
           {isCollapsed ? (
-            <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-              <Crosshair className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
+            <Link href="/dashboard/search" className="mx-auto flex items-center" aria-label={t("appName")}>
+              <Logo variant="mark" theme="light" height={28} />
+            </Link>
           ) : (
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-                <Crosshair className="h-4 w-4 text-sidebar-primary-foreground" />
-              </div>
-              <span className="font-display text-lg tracking-tight text-sidebar-foreground">
-                {t("appName")}
-              </span>
-            </div>
+            <Link href="/dashboard/search" className="flex items-center" aria-label={t("appName")}>
+              <Logo theme="light" height={28} />
+            </Link>
           )}
         </div>
 
