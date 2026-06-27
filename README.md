@@ -45,7 +45,6 @@ Buscador inteligente de prospectos multi-canal con CRM Kanban, panel de ventas, 
 
 ### Auth avanzado
 - Email + password con validación Zod
-- Google OAuth (Sign in with Google)
 - Magic Links (login sin password)
 - Forgot password con email reset
 - Email confirmation
