@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     `Negocio: ${name}\n` +
     `Qué hace: ${what}\n` +
     `Tono: ${tone || "Profesional y cálido"}\n\n` +
-    "El JSON debe tener exactamente estas llaves (strings en español, breves y elegantes):\n" +
+    "Generá TODO el contenido del sitio. El JSON debe tener exactamente estas llaves (strings en español, breves y elegantes):\n" +
     "{\n" +
     '  "tagline": "rubro corto, 2-4 palabras",\n' +
     '  "heroHeadline": "titular potente, máx 7 palabras",\n' +
@@ -38,9 +38,13 @@ export async function POST(request: Request) {
     '  "aboutText": "2-3 frases sobre el valor del negocio",\n' +
     '  "stmtText": "una cita/declaración memorable, máx 14 palabras",\n' +
     '  "servicesTitle": "título sección servicios, máx 4 palabras",\n' +
-    '  "services": [ {"title":"...","desc":"1 frase"}, {"title":"...","desc":"1 frase"}, {"title":"...","desc":"1 frase"} ],\n' +
+    '  "services": [ {"title":"...","desc":"1 frase"}, {"title":"...","desc":"1 frase"}, {"title":"...","desc":"1 frase"}, {"title":"...","desc":"1 frase"} ],\n' +
+    '  "galleryTitle": "título sección galería/proyectos, máx 4 palabras",\n' +
+    '  "googleReviewsTitle": "título sección reseñas, máx 6 palabras",\n' +
+    '  "socialTitle": "título sección redes sociales, máx 5 palabras",\n' +
     '  "ctaTitle": "invitación a contactar, máx 6 palabras",\n' +
     '  "ctaSubtext": "1 frase amable de cierre",\n' +
+    '  "contactCtaText": "texto del botón final, 2-4 palabras",\n' +
     '  "whatsappMessage": "mensaje que el cliente enviaría por WhatsApp"\n' +
     "}";
 
@@ -53,11 +57,20 @@ export async function POST(request: Request) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
         messages: [{ role: "user", content: prompt }],
       }),
     });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error("Anthropic API error:", res.status, errBody);
+      return NextResponse.json(
+        { error: "El servicio de IA no respondió. Intentá de nuevo en unos segundos." },
+        { status: 502 },
+      );
+    }
 
     const data = await res.json();
     const text = (data.content || [])
@@ -70,6 +83,7 @@ export async function POST(request: Request) {
     const parsed = JSON.parse(text);
     return NextResponse.json(parsed);
   } catch (e: any) {
+    console.error("generate-copy error:", e?.message || e);
     return NextResponse.json({ error: e.message || "AI generation failed" }, { status: 500 });
   }
 }

@@ -843,8 +843,12 @@ function AIModal({ d, setD, onClose }) {
         stmtText: parsed.stmtText ?? o.stmtText,
         servicesTitle: parsed.servicesTitle ?? o.servicesTitle,
         services: Array.isArray(parsed.services) && parsed.services.length ? parsed.services : o.services,
+        galleryTitle: parsed.galleryTitle ?? o.galleryTitle,
+        googleReviewsTitle: parsed.googleReviewsTitle ?? o.googleReviewsTitle,
+        socialTitle: parsed.socialTitle ?? o.socialTitle,
         ctaTitle: parsed.ctaTitle ?? o.ctaTitle,
         ctaSubtext: parsed.ctaSubtext ?? o.ctaSubtext,
+        contactCtaText: parsed.contactCtaText ?? o.contactCtaText,
         whatsappMessage: parsed.whatsappMessage ?? o.whatsappMessage,
       }));
       onClose();
