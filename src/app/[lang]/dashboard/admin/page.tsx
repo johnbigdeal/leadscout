@@ -53,6 +53,7 @@ interface AdminUser {
     role: string;
     approved: boolean;
     orgName: string;
+    plan?: string;
   } | null;
   profileRole: string;
 }
@@ -174,6 +175,7 @@ export default function AdminDashboardPage() {
     toast.success("Suscripción cancelada");
     fetchSubscriptions();
     fetchOrgs();
+    fetchUsers();
   }
 
   async function fetchTrials() {
@@ -267,6 +269,7 @@ export default function AdminDashboardPage() {
     toast.success("Upgrade realizado");
     fetchSubscriptions();
     fetchOrgs();
+    fetchUsers();
   }
 
   useEffect(() => {
@@ -461,6 +464,29 @@ export default function AdminDashboardPage() {
                           </Button>
                         </>
                       )}
+                      {u.membership && u.profileRole !== "super_admin" && (
+                        u.membership.plan === "pro" ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-zinc-600 hover:text-zinc-800"
+                            title="Downgrade a Free"
+                            onClick={() => handleCancelSubscription(u.membership!.orgId)}
+                          >
+                            Free
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-emerald-600 hover:text-emerald-700"
+                            title="Upgrade a Pro"
+                            onClick={() => handleUpgradeSubscription(u.membership!.orgId)}
+                          >
+                            <Zap className="mr-1 h-3.5 w-3.5" /> Pro
+                          </Button>
+                        )
+                      )}
                       {u.profileRole !== "super_admin" && (
                         <Button
                           size="sm"
@@ -469,8 +495,15 @@ export default function AdminDashboardPage() {
                           onClick={async () => {
                             if (!confirm(`¿Eliminar usuario ${u.email}?\nSe desactivará su acceso.`)) return;
                             const headers = await getAuthHeaders();
-                            await fetch(`/api/admin/users/${u.id}`, { method: "DELETE", headers });
+                            const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE", headers });
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}));
+                              toast.error(err.error || "No se pudo eliminar el usuario.");
+                              return;
+                            }
+                            toast.success("Usuario eliminado");
                             fetchUsers();
+                            fetchStats();
                           }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { memberships, organizations, profiles } from "@/lib/db/schema";
+import { memberships, organizations, profiles, subscriptions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -38,28 +38,40 @@ export async function GET(request: Request) {
     .select()
     .from(organizations);
 
-  const usersWithData = allUsers.map((u) => {
-    const m = allMemberships.find((m) => m.userId === u.id);
-    const p = allProfiles.find((p) => p.id === u.id);
-    const org = m ? allOrgs.find((o) => o.id === m.orgId) : null;
+  const allSubs = await db
+    .select({ orgId: subscriptions.orgId, plan: subscriptions.plan })
+    .from(subscriptions);
 
-    return {
-      id: u.id,
-      email: u.email,
-      createdAt: u.created_at,
-      lastSignInAt: u.last_sign_in_at,
-      membership: m
-        ? {
-            id: m.id,
-            orgId: m.orgId,
-            role: m.role,
-            approved: m.approved,
-            orgName: org?.name,
-          }
-        : null,
-      profileRole: p?.role || "user",
-    };
-  });
+  const usersWithData = allUsers
+    /* Hide soft-deleted users (profile.deletedAt set). */
+    .filter((u) => {
+      const p = allProfiles.find((pp) => pp.id === u.id);
+      return !p?.deletedAt;
+    })
+    .map((u) => {
+      const m = allMemberships.find((m) => m.userId === u.id);
+      const p = allProfiles.find((p) => p.id === u.id);
+      const org = m ? allOrgs.find((o) => o.id === m.orgId) : null;
+      const sub = m ? allSubs.find((s) => s.orgId === m.orgId) : null;
+
+      return {
+        id: u.id,
+        email: u.email,
+        createdAt: u.created_at,
+        lastSignInAt: u.last_sign_in_at,
+        membership: m
+          ? {
+              id: m.id,
+              orgId: m.orgId,
+              role: m.role,
+              approved: m.approved,
+              orgName: org?.name,
+              plan: sub?.plan || "free",
+            }
+          : null,
+        profileRole: p?.role || "user",
+      };
+    });
 
   return NextResponse.json({ users: usersWithData });
 }
