@@ -66,6 +66,18 @@ export async function POST(request: Request) {
   const { name, leadId, businessId } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
+  /* One website per lead: if one already exists for this lead (draft or
+     published), return it instead of creating a duplicate. The CRM "Crear
+     Website" button then opens the existing draft. */
+  if (leadId) {
+    const [existing] = await db
+      .select()
+      .from(websites)
+      .where(and(eq(websites.leadId, leadId), eq(websites.orgId, ctx.orgId)))
+      .limit(1);
+    if (existing) return NextResponse.json(existing);
+  }
+
   let initialData: Record<string, any> = {};
   let resolvedBusinessId = businessId;
 
