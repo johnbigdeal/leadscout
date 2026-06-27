@@ -640,7 +640,7 @@ export default function ResultsPage() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="font-display text-lg">{t("contactInfo")}</DialogTitle>
           </DialogHeader>

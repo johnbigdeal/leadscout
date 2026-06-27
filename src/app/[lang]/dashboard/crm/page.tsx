@@ -392,16 +392,16 @@ function LeadDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!top-[3%] !-translate-y-0 !max-h-[94vh] max-w-2xl flex flex-col">
+      <DialogContent className="!top-[3%] !-translate-y-0 !max-h-[94vh] max-w-[calc(100%-1.5rem)] sm:max-w-2xl flex flex-col">
         <div className="flex flex-col h-full">
-          <DialogHeader className="shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+          <DialogHeader className="shrink-0 pr-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                   <User className="h-5 w-5 text-primary" />
                 </div>
-                <div>
-                  <DialogTitle className="font-display text-lg">{lead.business?.name ?? "—"}</DialogTitle>
+                <div className="min-w-0">
+                  <DialogTitle className="font-display text-lg break-words leading-snug">{lead.business?.name ?? "—"}</DialogTitle>
                   <DialogDescription>{t("createdAt")}: {formatDate(lead.createdAt)}</DialogDescription>
                 </div>
               </div>
@@ -409,6 +409,7 @@ function LeadDetailDialog({
                 <Button
                   size="sm"
                   variant="outline"
+                  className="shrink-0"
                   onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
                 >
                   <Globe className="mr-1.5 h-4 w-4" />
@@ -1088,7 +1089,7 @@ export default function CrmPage() {
       />
 
       <Dialog open={showCreatePipeline} onOpenChange={setShowCreatePipeline}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Crear pipeline</DialogTitle>
           </DialogHeader>
