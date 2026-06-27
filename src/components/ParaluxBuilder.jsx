@@ -40,6 +40,54 @@ const PRESETS = {
     light: { bg: "#FFFFFF", surface: "#F4F4F4", text: "#08080A", muted: "#55555E", line: "#E4E4E8" },
     dark: { bg: "#08080A", surface: "#121214", text: "#FAFAFA", muted: "#9C9CA6", line: "#202024" },
   },
+  clasico: {
+    label: "Clásico",
+    display: "Playfair Display",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600;700&display=swap",
+    light: { bg: "#FFFFFF", surface: "#F6F4F0", text: "#1A1714", muted: "#6B6358", line: "#E8E2D8" },
+    dark: { bg: "#13110E", surface: "#1C1915", text: "#F5F1EA", muted: "#A89E90", line: "#2A251E" },
+  },
+  geometrico: {
+    label: "Geométrico",
+    display: "Poppins",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+    light: { bg: "#FFFFFF", surface: "#F4F5F7", text: "#10131A", muted: "#5A6172", line: "#E4E7EC" },
+    dark: { bg: "#0B0D12", surface: "#14171F", text: "#F2F4F8", muted: "#969DAE", line: "#222732" },
+  },
+  corporativo: {
+    label: "Corporativo",
+    display: "Montserrat",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@500;600;700&display=swap",
+    light: { bg: "#FFFFFF", surface: "#F3F5F6", text: "#0F1417", muted: "#566066", line: "#E3E8EA" },
+    dark: { bg: "#0A0E10", surface: "#13181B", text: "#F1F5F6", muted: "#929CA1", line: "#212A2E" },
+  },
+  lectura: {
+    label: "Lectura",
+    display: "Lora",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Lora:wght@500;600;700&display=swap",
+    light: { bg: "#FCFBF9", surface: "#F1EEE9", text: "#1F1B16", muted: "#6F665B", line: "#E6E0D6" },
+    dark: { bg: "#14110D", surface: "#1D1913", text: "#F3EFE8", muted: "#A89E90", line: "#29231B" },
+  },
+  lujo: {
+    label: "Lujo",
+    display: "DM Serif Display",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500&display=swap",
+    light: { bg: "#FFFFFF", surface: "#F5F3F1", text: "#161311", muted: "#6A625C", line: "#E7E1DC" },
+    dark: { bg: "#100E0D", surface: "#191614", text: "#F4F0EC", muted: "#A79E96", line: "#26211D" },
+  },
+  tech: {
+    label: "Tech",
+    display: "Sora",
+    fontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@500;600;700&display=swap",
+    light: { bg: "#FFFFFF", surface: "#F4F5F8", text: "#0D1017", muted: "#586173", line: "#E3E6EE" },
+    dark: { bg: "#090B10", surface: "#12151C", text: "#F1F3F8", muted: "#949CAD", line: "#1F2430" },
+  },
 };
 
 const ACCENTS = ["#3B3BF5", "#1F6F6B", "#C2410C", "#7C3AED", "#0F172A", "#B5835A", "#DB2777", "#15803D"];

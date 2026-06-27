@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         heroImage: images[0] || { url: "https://picsum.photos/seed/bizhero/1800/1100" },
         aboutImage: images[1] || { url: "https://picsum.photos/seed/bizabout/1000/1250" },
         stmtImage: images[2] || { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
-        gallery: images.slice(3, 7) || [],
+        gallery: images.slice(3, 6) || [],
         servicesTitle: "Servicios",
         services: [
           { title: "Servicio Principal", desc: "Descripción de nuestro servicio principal." },
