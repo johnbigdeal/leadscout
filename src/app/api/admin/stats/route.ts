@@ -10,7 +10,7 @@ import {
   profiles,
   subscriptions,
 } from "@/lib/db/schema";
-import { count, eq, and, isNotNull, sql } from "drizzle-orm";
+import { count, eq, and, isNotNull, lt, gt } from "drizzle-orm";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       and(
         eq(subscriptions.plan, "free"),
         isNotNull(subscriptions.trialEndsAt),
-        sql`${subscriptions.trialEndsAt} < ${now}`,
+        lt(subscriptions.trialEndsAt, now),
       ),
     );
 
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       and(
         eq(subscriptions.plan, "free"),
         isNotNull(subscriptions.trialEndsAt),
-        sql`${subscriptions.trialEndsAt} > ${now}`,
+        gt(subscriptions.trialEndsAt, now),
       ),
     );
 
