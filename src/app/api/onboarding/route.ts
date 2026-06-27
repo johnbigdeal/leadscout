@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { organizations, memberships, subscriptions, pipelines, profiles } from "@/lib/db/schema";
+import { organizations, memberships, subscriptions, pipelines, profiles, subscribers } from "@/lib/db/schema";
 import { rateLimit } from "@/lib/rate-limit";
 import { generateUniqueReferralCode } from "@/lib/referrals";
 import { eq } from "drizzle-orm";
@@ -29,6 +29,15 @@ export async function POST(request: Request) {
   }
 
   const isSuperAdmin = user.email === "johnbigdeal@gmail.com";
+
+  /* Capturar el correo para envíos/campañas futuras (idempotente; corre incluso
+     en el early-return de abajo). */
+  if (user.email) {
+    await db
+      .insert(subscribers)
+      .values({ email: user.email, source: "signup", userId })
+      .onConflictDoNothing();
+  }
 
   /* Idempotente: si el usuario ya tiene membership, devolvemos su org existente
      en vez de crear una duplicada. Cubre reintentos y el caso de una cuenta que
