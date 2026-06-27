@@ -261,7 +261,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .from(subscriptions)
     .where(eq(subscriptions.orgId, ctx.orgId))
     .limit(1);
-  const plan = sub?.plan || "free";
+  /* Superadmins get Pro behaviour (choose any root domain), matching the custom
+     domain path above and /api/billing/plans. Otherwise free orgs are forced to
+     leadscout.lat. */
+  const plan = ctx.isSuperAdmin ? "pro" : (sub?.plan || "free");
 
   /* Resolve root domain */
   let mainDomain: string | null = null;
@@ -372,6 +375,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      what actually provisions the certificate (wildcard certs are not auto-issued
      for Cloudflare-nameserver domains). */
   await addDomainToVercel(project.id, fullDomain);
+
+  /* If this website was previously published on a different domain, remove the
+     stale domain (Vercel + DB) so it doesn't keep resolving after a domain change. */
+  const previous = await db
+    .select()
+    .from(customDomains)
+    .where(and(eq(customDomains.websiteId, id), eq(customDomains.orgId, ctx.orgId)));
+  for (const old of previous) {
+    if (old.domain === fullDomain) continue;
+    try {
+      await vercelRequest(`/v9/projects/${project.id}/domains/${old.domain}`, { method: "DELETE" });
+    } catch (e: any) {
+      console.error("Failed to remove old Vercel domain:", e.message);
+    }
+    await db.delete(customDomains).where(eq(customDomains.id, old.id));
+  }
 
   /* Save to DB (dnsRecordId = null because the wildcard CNAME handles routing) */
   const zId: string = resolvedZoneId;
