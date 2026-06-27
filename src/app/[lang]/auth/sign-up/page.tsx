@@ -60,6 +60,10 @@ export default function SignUpPage() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/es/auth/confirm`,
+        data: { orgName },
+      },
     });
 
     if (signUpError) {
@@ -97,13 +101,14 @@ export default function SignUpPage() {
       <div className="flex min-h-screen items-center justify-center px-4 bg-background">
         <Card className="w-full max-w-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-display tracking-tight">¡Cuenta creada!</CardTitle>
+            <CardTitle className="text-2xl font-display tracking-tight">Revisá tu email</CardTitle>
             <CardDescription>
-              Tu cuenta ha sido creada exitosamente. Ahora puedes iniciar sesión.
+              Te enviamos un email de confirmación a <strong>{email}</strong>. Hacé
+              clic en el enlace para activar tu cuenta y poder iniciar sesión.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => router.push("/auth/sign-in")}>
+            <Button className="w-full" variant="outline" onClick={() => router.push("/auth/sign-in")}>
               Ir a iniciar sesión
             </Button>
           </CardContent>

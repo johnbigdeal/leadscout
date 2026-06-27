@@ -337,3 +337,13 @@ export const customDomains = pgTable("custom_domains", {
   sslStatus: text("ssl_status"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* Lista de correos capturados (registro, etc.) para envíos/campañas futuras. */
+export const subscribers = pgTable("subscribers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  source: text("source").notNull().default("signup"),
+  userId: uuid("user_id"),
+  unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -17,8 +17,30 @@ export default function ConfirmEmailPage() {
   useEffect(() => {
     async function confirmEmail() {
       const supabase = createClient();
-      // Supabase automatically handles the token in the URL hash
-      // We just need to check if the session was established
+
+      /* El link de confirmación llega con ?code=... (PKCE) o
+         ?token_hash=...&type=... Hay que intercambiarlo por una sesión;
+         getSession() por sí solo no alcanza. */
+      const code = searchParams.get("code");
+      const tokenHash = searchParams.get("token_hash");
+      const type = searchParams.get("type");
+      try {
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        } else if (tokenHash) {
+          const { error } = await supabase.auth.verifyOtp({
+            type: (type as "signup" | "email" | "recovery" | "magiclink") || "signup",
+            token_hash: tokenHash,
+          });
+          if (error) throw error;
+        }
+      } catch {
+        setStatus("error");
+        setMessage("El enlace de confirmación ha expirado o no es válido.");
+        return;
+      }
+
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
@@ -42,7 +64,7 @@ export default function ConfirmEmailPage() {
     }
 
     confirmEmail();
-  }, [router]);
+  }, [router, searchParams]);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 bg-background">
