@@ -42,8 +42,8 @@ async function findMatchingBusiness(name: string, phone?: string | null, address
   return null;
 }
 
-async function processGoogleResults(searchId: string, queries: string[], locationQuery: string) {
-  const run = await startGooglePlacesSearch(queries, locationQuery, 100);
+async function processGoogleResults(searchId: string, queries: string[], locationQuery: string, maxResults: number) {
+  const run = await startGooglePlacesSearch(queries, locationQuery, maxResults);
   const cost = String((run as any).usageUsd?.ACTOR_COMPUTE_UNITS ?? 0);
 
   await db.insert(apifyRuns).values({
@@ -268,7 +268,7 @@ async function runPostProcess(upserted: (typeof businesses.$inferSelect)[]) {
   }
 }
 
-async function runPipeline(searchId: string, orgId: string, keywords: string, location: string, channels: string[], linkedinUrls: string[] = []) {
+async function runPipeline(searchId: string, orgId: string, keywords: string, location: string, channels: string[], linkedinUrls: string[] = [], maxResults: number = 50) {
   try {
     await db.update(searches).set({ status: "running" }).where(eq(searches.id, searchId));
 
@@ -279,7 +279,7 @@ async function runPipeline(searchId: string, orgId: string, keywords: string, lo
     const allUpserted: Map<string, typeof businesses.$inferSelect> = new Map();
 
     if (channels.includes("google")) {
-      const googleBiz = await processGoogleResults(searchId, queries, location);
+      const googleBiz = await processGoogleResults(searchId, queries, location, maxResults);
       googleBiz.forEach(b => allUpserted.set(b.id, b));
     }
 
@@ -297,7 +297,8 @@ async function runPipeline(searchId: string, orgId: string, keywords: string, lo
       });
     }
 
-    const finalUpserted = Array.from(allUpserted.values());
+    /* Hard cap on leads per search by plan (Free: 25, Pro: 50). */
+    const finalUpserted = Array.from(allUpserted.values()).slice(0, maxResults);
 
     for (const biz of finalUpserted) {
       await db.insert(searchBusinesses).values({ searchId, businessId: biz.id }).onConflictDoNothing();
@@ -348,8 +349,10 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = profile?.role === "super_admin";
 
-  /* Check plan limits - Free: 1 search/day per user + referral credits. Super admin bypass. */
+  /* Check plan limits - Free: 1 search/day per user + referral credits. Super admin bypass.
+     Leads per search by plan: Free 25, Pro/super admin 50. */
   let consumesCredit = false;
+  let maxResults = 50;
   if (!isSuperAdmin) {
     const limits = await getPlanLimits(orgId, user.id);
     if (!limits.canSearch) {
@@ -366,6 +369,7 @@ export async function POST(request: Request) {
     if (limits.plan === "free" && (limits.usedToday ?? 0) >= 1) {
       consumesCredit = true;
     }
+    maxResults = limits.plan === "pro" ? 50 : 25;
   }
 
   const [search] = await db
@@ -380,7 +384,7 @@ export async function POST(request: Request) {
       .where(eq(profiles.id, user.id));
   }
 
-  await runPipeline(search.id, orgId, keywords, location, channels, linkedinUrls);
+  await runPipeline(search.id, orgId, keywords, location, channels, linkedinUrls, maxResults);
 
   const updated = await db.select({ status: searches.status }).from(searches).where(eq(searches.id, search.id)).limit(1);
   return NextResponse.json({ searchId: search.id, status: updated[0]?.status ?? "error" });
