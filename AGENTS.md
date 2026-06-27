@@ -125,7 +125,7 @@ messages/
 - **Middleware** (`src/middleware.ts`) protege `/dashboard/*` y `/api/*` a nivel edge
 - **Centralizado** en `src/lib/auth.ts` — `authenticateRequest`, `requireAuth`, `requireAdmin`
 - **21 API routes** ya refactorizadas para usar `requireAuth()`
-- **Features:** Email+password, Google OAuth, Magic Links, forgot password, email confirmation
+- **Features:** Email+password, Magic Links, forgot password, email confirmation
 - **Dashboard layout** es Server Component — obtiene user directo de Supabase sin fetch extra
 
 ### Builder + Publishing

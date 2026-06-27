@@ -16,7 +16,7 @@ LeadScout busca negocios en Google Maps/Instagram/LinkedIn, los convierte en lea
 
 - **Next.js 16** + TypeScript + Tailwind v4 + shadcn/ui
 - **PostgreSQL** + Drizzle ORM
-- **Supabase Auth** (email, Google OAuth, Magic Links)
+- **Supabase Auth** (email, Magic Links)
 - **Cloudflare API** para DNS de subdominios
 - **Unsplash API** para imágenes
 - **Vercel** para deploy
