@@ -21,6 +21,17 @@ async function cfRequest(token: string, path: string, opts?: RequestInit) {
   return data.result;
 }
 
+async function deleteDnsRecordByName(token: string, zoneId: string, name: string, type: string) {
+  try {
+    const records = await cfRequest(token, `/zones/${zoneId}/dns_records?name=${name}&type=${type}`);
+    if (records && records.length > 0) {
+      await cfRequest(token, `/zones/${zoneId}/dns_records/${records[0].id}`, { method: "DELETE" });
+    }
+  } catch (e: any) {
+    console.error("Failed to delete DNS record by name:", e.message);
+  }
+}
+
 /* POST /api/websites/[id]/unpublish */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAuth(request);
@@ -46,21 +57,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   for (const domain of domainRows) {
     /* Delete from Cloudflare */
-    if (domain.dnsRecordId) {
-      const cfRows = await db
-        .select({ apiToken: cloudflareAccounts.apiToken })
-        .from(cloudflareAccounts)
-        .where(eq(cloudflareAccounts.orgId, ctx.orgId))
-        .limit(1);
+    const cfRows = await db
+      .select({ apiToken: cloudflareAccounts.apiToken })
+      .from(cloudflareAccounts)
+      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+      .limit(1);
 
-      if (cfRows.length > 0) {
+    const cfToken = cfRows[0]?.apiToken;
+    if (cfToken && domain.zoneId) {
+      if (domain.dnsRecordId) {
+        /* Legacy individual record */
         try {
-          await cfRequest(cfRows[0].apiToken, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, {
-            method: "DELETE",
-          });
+          await cfRequest(cfToken, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, { method: "DELETE" });
         } catch (e: any) {
           console.error("Failed to delete Cloudflare DNS:", e.message);
         }
+      } else if (domain.subdomain && domain.rootDomain) {
+        /* Wildcard-based record: delete any individual record by name */
+        await deleteDnsRecordByName(cfToken, domain.zoneId, `${domain.subdomain}.${domain.rootDomain}`, "CNAME");
       }
     }
 

@@ -38,6 +38,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return NextResponse.json(rows[0]);
 }
 
+async function cfPurgeCache(token: string, zoneId: string, urls: string[]) {
+  try {
+    await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ files: urls }),
+    });
+  } catch (e: any) {
+    console.error("Cloudflare purge cache error:", e.message);
+  }
+}
+
 /* PUT /api/websites/[id] */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAuth(request);
@@ -61,6 +73,29 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     .returning();
 
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  /* Purge Cloudflare cache for published URL so updates appear instantly */
+  if (row.publishedUrl) {
+    const domainRows = await db
+      .select()
+      .from(customDomains)
+      .where(and(eq(customDomains.websiteId, id), eq(customDomains.orgId, ctx.orgId)));
+
+    for (const domain of domainRows) {
+      if (!domain.zoneId) continue;
+      const cfToken =
+        process.env.CLOUDFLARE_API_TOKEN ||
+        (await db
+          .select({ apiToken: cloudflareAccounts.apiToken })
+          .from(cloudflareAccounts)
+          .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+          .limit(1))[0]?.apiToken;
+      if (cfToken) {
+        await cfPurgeCache(cfToken, domain.zoneId, [`${row.publishedUrl}/`]);
+      }
+    }
+  }
+
   return NextResponse.json(row);
 }
 
@@ -80,20 +115,29 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   for (const domain of domainRows) {
     /* Delete from Cloudflare */
-    if (domain.dnsRecordId) {
-      const cfRows = await db
-        .select({ apiToken: cloudflareAccounts.apiToken })
-        .from(cloudflareAccounts)
-        .where(eq(cloudflareAccounts.orgId, ctx.orgId))
-        .limit(1);
+    const cfRows = await db
+      .select({ apiToken: cloudflareAccounts.apiToken })
+      .from(cloudflareAccounts)
+      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+      .limit(1);
 
-      if (cfRows.length > 0) {
+    const cfToken = cfRows[0]?.apiToken;
+    if (cfToken && domain.zoneId) {
+      if (domain.dnsRecordId) {
         try {
-          await cfRequest(cfRows[0].apiToken, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, {
-            method: "DELETE",
-          });
+          await cfRequest(cfToken, `/zones/${domain.zoneId}/dns_records/${domain.dnsRecordId}`, { method: "DELETE" });
         } catch (e: any) {
           console.error("Failed to delete Cloudflare DNS:", e.message);
+        }
+      } else if (domain.subdomain && domain.rootDomain) {
+        /* Wildcard-based record: delete any individual record by name */
+        try {
+          const records = await cfRequest(cfToken, `/zones/${domain.zoneId}/dns_records?name=${domain.subdomain}.${domain.rootDomain}&type=CNAME`);
+          if (records && records.length > 0) {
+            await cfRequest(cfToken, `/zones/${domain.zoneId}/dns_records/${records[0].id}`, { method: "DELETE" });
+          }
+        } catch (e: any) {
+          console.error("Failed to delete Cloudflare DNS by name:", e.message);
         }
       }
     }

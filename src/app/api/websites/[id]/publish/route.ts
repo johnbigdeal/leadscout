@@ -67,6 +67,41 @@ async function addDomainToVercel(projectId: string, domain: string) {
   }
 }
 
+/* Purge Cloudflare cache for URLs */
+async function cfPurgeCache(token: string, zoneId: string, urls: string[]) {
+  try {
+    await cfRequest(token, `/zones/${zoneId}/purge_cache`, {
+      method: "POST",
+      body: JSON.stringify({ files: urls }),
+    });
+  } catch (e: any) {
+    console.error("Cloudflare purge cache error:", e.message);
+  }
+}
+
+/* Ensure wildcard CNAME exists for a root domain */
+async function ensureWildcardRecord(token: string, zoneId: string, rootDomain: string) {
+  try {
+    const records = await cfRequest(token, `/zones/${zoneId}/dns_records?name=*.${rootDomain}&type=CNAME`);
+    if (records && records.length > 0) return records[0].id;
+
+    const record = await cfRequest(token, `/zones/${zoneId}/dns_records`, {
+      method: "POST",
+      body: JSON.stringify({
+        type: "CNAME",
+        name: "*",
+        content: "cname.vercel-dns.com",
+        ttl: 1,
+        proxied: false,
+      }),
+    });
+    return record.id;
+  } catch (e: any) {
+    console.error("Ensure wildcard record error:", e.message);
+    return null;
+  }
+}
+
 /* POST /api/websites/[id]/publish */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAuth(request);
@@ -311,36 +346,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     resolvedZoneId = zones[0].id;
   }
 
-  /* Create/update DNS */
-  let dnsRecordId = existing[0]?.dnsRecordId;
-  if (dnsRecordId) {
-    await cfRequest(subdomainCfToken, `/zones/${resolvedZoneId}/dns_records/${dnsRecordId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ type: "CNAME", name: subdomain, content: "cname.vercel-dns.com", ttl: 1, proxied: false }),
-    });
-  } else {
-    const record = await cfRequest(subdomainCfToken, `/zones/${resolvedZoneId}/dns_records`, {
-      method: "POST",
-      body: JSON.stringify({ type: "CNAME", name: subdomain, content: "cname.vercel-dns.com", ttl: 1, proxied: false }),
-    });
-    dnsRecordId = record.id;
+  if (!resolvedZoneId || !mainDomain) {
+    return NextResponse.json({ error: "Failed to resolve zone" }, { status: 500 });
+  }
+
+  /* Ensure wildcard record exists for instant propagation */
+  await ensureWildcardRecord(subdomainCfToken, resolvedZoneId, mainDomain);
+
+  /* Remove any legacy individual DNS record for this subdomain (switch to wildcard) */
+  if (existing[0]?.dnsRecordId) {
+    try {
+      await cfRequest(subdomainCfToken, `/zones/${resolvedZoneId}/dns_records/${existing[0].dnsRecordId}`, { method: "DELETE" });
+    } catch (e: any) {
+      console.error("Failed to delete legacy subdomain record:", e.message);
+    }
   }
 
   /* Add to Vercel */
   await addDomainToVercel(project.id, fullDomain);
 
-  /* Save to DB */
-  if (!dnsRecordId || !resolvedZoneId) {
-    return NextResponse.json({ error: "Failed to create DNS record" }, { status: 500 });
-  }
-  const recordId: string = dnsRecordId;
+  /* Save to DB (dnsRecordId = null because wildcard handles DNS) */
   const zId: string = resolvedZoneId;
   if (existing.length > 0) {
-    await db.update(customDomains).set({ websiteId: id, dnsRecordId: recordId, zoneId: zId, status: "active" }).where(eq(customDomains.id, existing[0].id));
+    await db.update(customDomains)
+      .set({ websiteId: id, dnsRecordId: null, zoneId: zId, status: "active" })
+      .where(eq(customDomains.id, existing[0].id));
   } else {
     await db.insert(customDomains).values({
       orgId: ctx.orgId, websiteId: id, domain: fullDomain, rootDomain: mainDomain, subdomain,
-      zoneId: zId, dnsRecordId: recordId, recordType: "CNAME", target: "cname.vercel-dns.com", status: "active",
+      zoneId: zId, dnsRecordId: null, recordType: "CNAME", target: "cname.vercel-dns.com", status: "active",
     });
   }
 
@@ -350,6 +384,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .set({ status: "published", subdomain, domain: fullDomain, publishedUrl: `https://${fullDomain}` })
     .where(eq(websites.id, id))
     .returning();
+
+  /* Purge Cloudflare cache for the URL */
+  await cfPurgeCache(subdomainCfToken, zId, [`https://${fullDomain}/`]);
 
   return NextResponse.json({ success: true, website: updated, url: `https://${fullDomain}` });
 }
