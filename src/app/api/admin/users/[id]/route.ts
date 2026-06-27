@@ -35,7 +35,7 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-/* DELETE /api/admin/users/[id] — Soft delete user */
+/* DELETE /api/admin/users/[id] — Delete user (Supabase Auth + app rows) */
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -50,11 +50,23 @@ export async function DELETE(
     return NextResponse.json({ error: "Cannot delete yourself" }, { status: 403 });
   }
 
-  /* Soft delete: mark profile as deleted */
-  await db.update(profiles).set({ deletedAt: new Date() }).where(eq(profiles.id, id));
+  /* Remove the Supabase Auth user. The admin user list is built from Supabase
+     Auth, so this is what actually removes them from the list and frees the
+     email — the previous soft-delete left the auth user in place and was a no-op
+     for accounts without a profile row. */
+  const supabase = createServiceClient();
+  const { error } = await supabase.auth.admin.deleteUser(id);
+  if (error && !/not.?found/i.test(error.message)) {
+    return NextResponse.json(
+      { error: `No se pudo eliminar el usuario: ${error.message}` },
+      { status: 500 },
+    );
+  }
 
-  /* Also mark membership as not approved */
-  await db.update(memberships).set({ approved: false }).where(eq(memberships.userId, id));
+  /* Clean up the user's own rows. Las organizaciones y sus datos (websites,
+     leads) se dejan intactos a propósito: borrar un usuario no destruye datos. */
+  await db.delete(memberships).where(eq(memberships.userId, id));
+  await db.delete(profiles).where(eq(profiles.id, id));
 
-  return NextResponse.json({ ok: true, message: "User soft deleted" });
+  return NextResponse.json({ ok: true, message: "User deleted" });
 }
