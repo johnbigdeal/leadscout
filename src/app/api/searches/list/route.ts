@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     })
     .from(searches)
     .leftJoin(searchBusinesses, eq(searchBusinesses.searchId, searches.id))
+    .where(eq(searches.createdBy, user.id))
     .groupBy(searches.id)
     .orderBy(desc(searches.createdAt))
     .limit(50);
