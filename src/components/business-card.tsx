@@ -50,6 +50,7 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
   const t = useTranslations("search");
   const ratingNum = business.rating ? Number(business.rating) : null;
   const googleMapsUrl = business.placeId ? `https://www.google.com/maps/place/?q=place_id:${business.placeId}` : null;
+  const reviewUrl = business.placeId ? `https://search.google.com/local/writereview?placeid=${business.placeId}` : null;
   const socials = business.socialProfiles ?? [];
   const instagram = socials.find(s => s.platform === "instagram")?.url ?? null;
   const linkedin = socials.find(s => s.platform === "linkedin")?.url ?? null;
@@ -141,6 +142,16 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
               <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1 text-accent hover:text-accent/80">
                 <span>{t("viewOnMaps")}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            </div>
+          )}
+          {reviewUrl && (
+            <div className="flex items-center gap-2 text-sm">
+              <Star className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <a href={reviewUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-accent hover:text-accent/80">
+                <span>Dejar reseña en Google</span>
                 <ExternalLink className="h-3 w-3 shrink-0" />
               </a>
             </div>

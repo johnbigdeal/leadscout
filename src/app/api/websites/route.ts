@@ -153,6 +153,11 @@ export async function POST(request: Request) {
         location: biz.address || "",
         instagram,
         website: biz.website || "",
+        /* Google review link from the business' Place ID (from Maps search),
+           used by the web builder's "Dejá tu reseña en Google" button. */
+        googleReviewUrl: biz.placeId
+          ? `https://search.google.com/local/writereview?placeid=${biz.placeId}`
+          : "",
         heroImage: images[0] || { url: "https://picsum.photos/seed/bizhero/1800/1100" },
         aboutImage: images[1] || { url: "https://picsum.photos/seed/bizabout/1000/1250" },
         stmtImage: images[2] || { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
