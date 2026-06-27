@@ -237,6 +237,7 @@ export const services = pgTable("services", {
     .references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   defaultCost: numeric("default_cost", { precision: 12, scale: 2 }).notNull().default("0"),
+  currency: text("currency").notNull().default("USD"),
   recurrence: text("recurrence").notNull().default("one_time"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -252,6 +253,7 @@ export const leadServices = pgTable("lead_services", {
     .notNull()
     .references(() => services.id),
   cost: numeric("cost", { precision: 12, scale: 2 }).notNull().default("0"),
+  currency: text("currency").notNull().default("USD"),
   recurrence: text("recurrence").notNull().default("one_time"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

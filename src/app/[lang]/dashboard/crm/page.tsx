@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
+import { CURRENCIES, formatMoney } from "@/lib/currencies";
 import { BusinessCard } from "@/components/business-card";
 import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign, Crown } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -277,6 +278,7 @@ function LeadDetailDialog({
   const [allServices, setAllServices] = useState<any[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceCost, setServiceCost] = useState("");
+  const [serviceCurrency, setServiceCurrency] = useState(currency || "USD");
   const [serviceRecurrence, setServiceRecurrence] = useState("one_time");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -310,12 +312,13 @@ function LeadDetailDialog({
     if (!selectedServiceId || !lead) return;
     const svc = allServices.find(s => s.id === selectedServiceId);
     const cost = serviceCost || svc?.defaultCost || "0";
+    const cur = serviceCurrency || svc?.currency || "USD";
     const recurrence = serviceRecurrence || svc?.recurrence || "one_time";
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
     const res = await fetch(`/api/leads/${lead.id}/services`, {
       method: "POST", headers,
-      body: JSON.stringify({ serviceId: selectedServiceId, cost, recurrence }),
+      body: JSON.stringify({ serviceId: selectedServiceId, cost, currency: cur, recurrence }),
     });
     if (res.ok) {
       const created = await res.json();
@@ -324,7 +327,7 @@ function LeadDetailDialog({
       setServiceCost("");
       await fetch(`/api/leads/${lead.id}/activities`, {
         method: "POST", headers,
-        body: JSON.stringify({ type: "service_added", body: `Servicio agregado: ${svc?.name} - ${new Intl.NumberFormat("es", { style: "currency", currency }).format(convertAmount(Number(cost)))}` }),
+        body: JSON.stringify({ type: "service_added", body: `Servicio agregado: ${svc?.name} - ${formatMoney(Number(cost), cur)}` }),
       }).catch(() => {});
       onServiceChange();
     } else {
@@ -478,7 +481,7 @@ function LeadDetailDialog({
                           <p className="text-sm font-medium text-zinc-800">{ls.serviceName}</p>
                           <span className="rounded bg-zinc-200 px-1 py-0 text-[10px] text-zinc-600">{RECURRENCE_LABELS[ls.recurrence] || ls.recurrence}</span>
                         </div>
-                        <p className="text-xs text-zinc-500">{new Intl.NumberFormat("es", { style: "currency", currency }).format(convertAmount(Number(ls.cost)))}</p>
+                        <p className="text-xs text-zinc-500">{formatMoney(Number(ls.cost), (ls as any).currency || (ls as any).defaultCurrency || "USD")}</p>
                       </div>
                       <button onClick={() => removeServiceFromLead(ls.serviceId)} className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500">
                         <X className="h-3.5 w-3.5" />
@@ -495,6 +498,7 @@ function LeadDetailDialog({
                       setSelectedServiceId(e.target.value);
                       const svc = allServices.find(s => s.id === e.target.value);
                       setServiceCost(svc?.defaultCost || "");
+                      setServiceCurrency(svc?.currency || currency || "USD");
                       setServiceRecurrence(svc?.recurrence || "one_time");
                     }}
                     className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -506,22 +510,33 @@ function LeadDetailDialog({
                   </select>
                   <div className="flex items-center gap-2">
                     <Input
-                      type="number" min="0" step="0.01" placeholder="Costo (USD)"
+                      type="number" min="0" step="0.01" placeholder="Costo"
                       value={serviceCost}
                       onChange={e => setServiceCost(e.target.value)}
                       className="h-9 flex-1 text-sm"
                     />
                     <select
-                      value={serviceRecurrence}
-                      onChange={e => setServiceRecurrence(e.target.value)}
-                      className="h-9 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      value={serviceCurrency}
+                      onChange={e => setServiceCurrency(e.target.value)}
+                      aria-label="Moneda del servicio"
+                      className="h-9 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
-                      <option value="one_time">Único</option>
-                      <option value="monthly">Mensual</option>
-                      <option value="annual">Anual</option>
-                      <option value="lifetime">Vitalicio</option>
+                      {CURRENCIES.map(c => (
+                        <option key={c.code} value={c.code}>{c.code}</option>
+                      ))}
                     </select>
                   </div>
+                  <select
+                    value={serviceRecurrence}
+                    onChange={e => setServiceRecurrence(e.target.value)}
+                    aria-label="Tipo de cobro"
+                    className="h-9 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <option value="one_time">Único</option>
+                    <option value="monthly">Mensual</option>
+                    <option value="annual">Anual</option>
+                    <option value="lifetime">Vitalicio</option>
+                  </select>
                   <Button size="sm" onClick={addServiceToLead} disabled={!selectedServiceId} className="w-full">
                     <Plus className="mr-1 h-4 w-4" />
                     Agregar servicio

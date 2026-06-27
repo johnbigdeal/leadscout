@@ -99,6 +99,13 @@
       "when": 1783000000000,
       "tag": "0013_add_trial_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782579652787,
+      "tag": "0014_add_service_currency",
+      "breakpoints": true
     }
   ]
 }

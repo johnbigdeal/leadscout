@@ -20,10 +20,12 @@ export async function GET(
       leadId: leadServices.leadId,
       serviceId: leadServices.serviceId,
       cost: leadServices.cost,
+      currency: leadServices.currency,
       recurrence: leadServices.recurrence,
       createdAt: leadServices.createdAt,
       serviceName: services.name,
       defaultCost: services.defaultCost,
+      defaultCurrency: services.currency,
     })
     .from(leadServices)
     .innerJoin(services, eq(leadServices.serviceId, services.id))
@@ -39,7 +41,7 @@ export async function POST(
   const result = await requireAuth(request);
   if (result.response) return result.response;
   const ctx = result.ctx;
-  const { serviceId, cost, recurrence } = await request.json();
+  const { serviceId, cost, currency, recurrence } = await request.json();
 
   const [lead] = await db.select().from(leads).where(and(eq(leads.id, leadId), eq(leads.orgId, ctx.orgId))).limit(1);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
@@ -49,6 +51,7 @@ export async function POST(
 
   const [ls] = await db.insert(leadServices).values({
     leadId, serviceId, cost: String(cost ?? 0),
+    currency: currency || svc.currency || "USD",
     recurrence: recurrence || svc.recurrence || "one_time",
   }).onConflictDoNothing().returning();
   if (!ls) return NextResponse.json({ error: "Already exists" }, { status: 409 });
