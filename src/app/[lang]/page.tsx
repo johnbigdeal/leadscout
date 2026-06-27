@@ -11,7 +11,23 @@ import {
   Zap,
   Shield,
   DollarSign,
+  Sparkles,
+  Gift,
+  Target,
+  ChevronDown,
 } from "lucide-react";
+
+function Faq({ q, a }: { q: string; a: string }) {
+  return (
+    <details className="group rounded-xl border border-zinc-200 bg-white p-5 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-zinc-900">
+        {q}
+        <ChevronDown className="h-5 w-5 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-600">{a}</p>
+    </details>
+  );
+}
 
 function FeatureCard({
   icon,
@@ -66,16 +82,22 @@ export default function HomePage() {
             <Zap className="h-5 w-5 text-zinc-900" />
             {t("appName")}
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <a href="#como" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 md:inline-block">
+              Cómo funciona
+            </a>
+            <a href="#faq" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 md:inline-block">
+              Preguntas
+            </a>
             <Link
               href="/auth/sign-in"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 sm:px-4"
             >
               {t("signIn")}
             </Link>
             <Link
               href="/auth/sign-up"
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:px-4"
             >
               {t("signUp")}
             </Link>
@@ -86,11 +108,15 @@ export default function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pt-20 pb-16">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
-            Encontrá prospectos de alto valor en minutos
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600">
+            <Sparkles className="h-3.5 w-3.5" />
+            Encontrá clientes y vendéles un sitio web — todo en un solo lugar
+          </span>
+          <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
+            Conseguí clientes hoy. Y un negocio que crece solo.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-zinc-600">
-            LeadScout escanea Google Maps, Instagram y LinkedIn para encontrar negocios con potencial de conversión. Organizalos en un CRM visual y cerrá más ventas.
+            LeadScout encuentra negocios reales en Google Maps, te dice cuáles tienen más oportunidad y los ordena en un CRM. ¿Y lo mejor? Generás un sitio web profesional para cada uno en minutos para cerrar la venta o arrancar tu propia agencia.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
@@ -100,12 +126,37 @@ export default function HomePage() {
               Empezar gratis
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/auth/sign-in"
+            <a
+              href="#como"
               className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
             >
-              Ya tengo cuenta
-            </Link>
+              Ver cómo funciona
+            </a>
+          </div>
+          <p className="mt-4 text-xs text-zinc-400">Gratis para empezar · Sin tarjeta · 1 búsqueda por día</p>
+        </div>
+      </section>
+
+      {/* Dos caminos */}
+      <section className="mx-auto max-w-6xl px-4 pb-4">
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-900 text-white">
+              <Target className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-semibold text-zinc-900">¿Buscás clientes?</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              Encontrá negocios por rubro y zona, con teléfono, WhatsApp, rating y un puntaje de oportunidad. Pasalos a tu CRM y cerrá más ventas, sin perder horas buscando a mano.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-900 text-white">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-semibold text-zinc-900">¿Querés vender sitios web?</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              LeadScout te muestra los negocios que <strong>no tienen web</strong>. Generás un sitio profesional para cada uno en minutos, lo publicás y lo usás para venderles. El negocio perfecto para arrancar tu agencia.
+            </p>
           </div>
         </div>
       </section>
@@ -141,75 +192,75 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 py-20">
         <div className="mb-12 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
-            Todo lo que necesitás para captar clientes
+            Todo lo que necesitás, en una sola plataforma
           </h2>
           <p className="mt-4 text-zinc-600">
-            De la búsqueda al cierre, en una sola plataforma.
+            De encontrar el negocio a entregarle su sitio web. Sin saltar entre 5 herramientas.
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
             icon={<Search className="h-5 w-5" />}
-            title="Búsqueda multi-canal"
-            description="Escaneá Google Maps por ubicación, Instagram por hashtag y LinkedIn por comentarios en posts. Todo en una sola búsqueda."
+            title="Búsqueda de negocios reales"
+            description="Buscá por rubro y zona en Google Maps y obtené teléfono, WhatsApp, dirección, rating y sitio web de cada negocio. En segundos."
           />
           <FeatureCard
             icon={<BarChart3 className="h-5 w-5" />}
-            title="Puntaje inteligente"
-            description="Cada negocio recibe un puntaje basado en presencia web, SEO, redes sociales y datos de contacto. Priorizá los mejores."
+            title="Puntaje de oportunidad"
+            description="Cada negocio trae un puntaje según su presencia web, SEO y redes. Detectá al instante quién no tiene web — tu próximo cliente."
+          />
+          <FeatureCard
+            icon={<Sparkles className="h-5 w-5" />}
+            title="Website builder instantáneo"
+            description="Generá un sitio web profesional para cualquier negocio en minutos: textos con IA, imágenes, reseñas de Google y botón de WhatsApp. Publicalo y vendelo."
           />
           <FeatureCard
             icon={<LayoutDashboard className="h-5 w-5" />}
             title="CRM Kanban"
-            description="Arrastrá prospectos entre etapas: Nuevo → Contactado → Calificado → Propuesta → Cierre. Con etiquetas, actividades y servicios."
+            description="Arrastrá tus prospectos entre etapas (Nuevo → Contactado → Calificado → Ganado). Con etiquetas, notas, servicios y recordatorios."
           />
           <FeatureCard
             icon={<DollarSign className="h-5 w-5" />}
-            title="Panel de ventas"
-            description="Visualizá ingresos potenciales, MRR/ARR por recurrencia y cerrados por etapa. Llevá el control de tus números."
+            title="Ventas y multimoneda"
+            description="Seguí ingresos potenciales, MRR/ARR y cierres. Cobrá en USD, CRC, MXN, COP, ARS, CLP, PEN o EUR con tasas actualizadas."
           />
           <FeatureCard
-            icon={<Globe className="h-5 w-5" />}
-            title="Multimoneda"
-            description="Operá en USD, CRC, CLP, COP, ARS, PEN o EUR. Las tasas de cambio se actualizan automáticamente."
-          />
-          <FeatureCard
-            icon={<Shield className="h-5 w-5" />}
-            title="Magic links"
-            description="Compartí resultados de búsqueda con tu equipo o clientes sin que necesiten cuenta. Links de 7 días de duración."
+            icon={<Gift className="h-5 w-5" />}
+            title="Referidos = búsquedas gratis"
+            description="Invitá con tu link único: cada persona que se suma te da una búsqueda gratis extra. Y si sos Pro, acumulás créditos para beneficios."
           />
         </div>
       </section>
 
       {/* How it works */}
-      <section className="bg-zinc-900 py-20 text-white">
+      <section id="como" className="scroll-mt-20 bg-zinc-900 py-20 text-white">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold tracking-tight">¿Cómo funciona?</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Cómo funciona</h2>
             <p className="mt-4 text-zinc-400">
-              De la búsqueda al cierre en 4 pasos.
+              De cero a cliente (con su sitio web listo) en 4 pasos.
             </p>
           </div>
           <div className="mx-auto max-w-2xl space-y-8">
             <Step
               number="1"
-              title="Definí tu búsqueda"
-              description="Elegí keywords, ubicación y canales (Google Maps, Instagram, LinkedIn). LeadScout hace el resto."
+              title="Buscá negocios"
+              description="Elegí un rubro y una zona. LeadScout trae los negocios de Google Maps con todos sus datos de contacto."
             />
             <Step
               number="2"
-              title="Revisá los resultados"
-              description="Cada negocio viene con puntaje, datos de contacto, redes sociales y métricas de SEO. Filtrá por calidad."
+              title="Detectá la oportunidad"
+              description="Mirá el puntaje y filtrá: quién no tiene web, quién tiene WhatsApp, quién está activo. Esos son tus mejores prospectos."
             />
             <Step
               number="3"
-              title="Convertí a leads"
-              description="Agregá los mejores negocios al CRM. Asignales etapa, categoría, etiquetas y servicios con recurrencia."
+              title="Sumalos a tu CRM"
+              description="Pasá los mejores al tablero, asignales etapa, etiquetas y servicios. Llevá el seguimiento sin perder ninguno."
             />
             <Step
               number="4"
-              title="Cerrá ventas"
-              description="Seguí el pipeline visual, registrá actividades y visualizá tus ingresos en el panel de ventas."
+              title="Cerrá la venta o generá su sitio"
+              description="Contactalos y cerrá. O generá un sitio web profesional para mostrarles lo que podés hacer — el argumento de venta perfecto."
             />
           </div>
         </div>
@@ -220,16 +271,19 @@ export default function HomePage() {
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
-              Diseñado para equipos de ventas en LATAM
+              Pensado para vendedores y emprendedores de LATAM
             </h2>
+            <p className="mt-4 text-zinc-600">
+              Ya sea que busques clientes o que quieras vivir de hacer sitios web, LeadScout te da las herramientas y los prospectos.
+            </p>
             <ul className="mt-8 space-y-4">
               {[
-                "Búsquedas ilimitadas por canal",
-                "CRM con pipelines personalizables",
-                "Categorías con color para organizar leads",
-                "Servicios con recurrencia (único, mensual, anual)",
-                "Moneda local automática con tasas actualizadas",
-                "Aprobación de usuarios y roles (superadmin)",
+                "Negocios reales de Google Maps con todos sus datos de contacto",
+                "Puntaje de oportunidad para detectar quién no tiene web",
+                "Website builder con IA: sitio profesional en minutos",
+                "Publicación instantánea en subdominio o tu propio dominio",
+                "CRM Kanban con servicios, recurrencia y panel de ventas",
+                "Multimoneda LATAM y referidos que te dan búsquedas gratis",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
@@ -275,14 +329,62 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section id="faq" className="scroll-mt-20 border-t border-zinc-100 bg-zinc-50/50 py-20">
+        <div className="mx-auto max-w-3xl px-4">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-zinc-900">Preguntas frecuentes</h2>
+            <p className="mt-4 text-zinc-600">Todo lo que querés saber antes de empezar.</p>
+          </div>
+          <div className="space-y-3">
+            <Faq
+              q="¿Qué es LeadScout y para quién es?"
+              a="Es una plataforma para encontrar negocios (leads) y convertirlos en clientes. Sirve tanto si vendés un producto o servicio y buscás a quién ofrecerlo, como si querés ganar dinero creando sitios web para negocios que todavía no tienen uno."
+            />
+            <Faq
+              q="¿De dónde salen los leads?"
+              a="De Google Maps. Buscás por rubro y zona, y LeadScout te trae los negocios reales con su nombre, teléfono, WhatsApp, dirección, rating y si tienen o no sitio web — más un puntaje de oportunidad."
+            />
+            <Faq
+              q="¿Necesito tarjeta de crédito para empezar?"
+              a="No. Te registrás gratis y podés hacer 1 búsqueda por día durante tu período de prueba. Sin tarjeta, sin compromiso."
+            />
+            <Faq
+              q="¿Qué diferencia hay entre el plan Free y el Pro?"
+              a="Free: 1 búsqueda por día (hasta 25 leads por búsqueda), 1 pipeline y lo esencial del CRM. Pro: búsquedas ilimitadas (hasta 50 leads por búsqueda), pipelines y servicios ilimitados, y la opción de publicar en tu propio dominio."
+            />
+            <Faq
+              q="¿Puedo crear sitios web para mis clientes?"
+              a="Sí. LeadScout incluye un editor que genera un sitio profesional en minutos: textos con IA, imágenes, sección de reseñas de Google y botón de WhatsApp. Lo publicás al instante y lo usás para cerrar la venta o entregárselo al cliente."
+            />
+            <Faq
+              q="¿Puedo usar mi propio dominio?"
+              a="Sí, en el plan Pro. Conectás tu cuenta de Cloudflare y publicás los sitios en tu propio dominio (por ejemplo, en el dominio de tu agencia o el de tu cliente)."
+            />
+            <Faq
+              q="¿Cómo funcionan los referidos y los créditos?"
+              a="Tenés un link único. Por cada persona que se registra y es aprobada, ganás un crédito que equivale a una búsqueda gratis extra. Si sos Pro (búsquedas ilimitadas), los créditos se acumulan para beneficios como entrenamientos y descuentos."
+            />
+            <Faq
+              q="¿En qué países y monedas funciona?"
+              a="Funciona en toda Latinoamérica. Podés trabajar y cobrar en USD, CRC, MXN, COP, ARS, CLP, PEN o EUR, con tasas de cambio que se actualizan solas."
+            />
+            <Faq
+              q="¿Mis búsquedas son privadas? ¿Puedo cancelar cuando quiera?"
+              a="Sí. Cada usuario ve únicamente sus propias búsquedas y leads. Y no hay permanencia: el plan gratis es para siempre y podés dejar de usarlo o bajar de plan cuando quieras."
+            />
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="border-t border-zinc-100 py-20">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
-            Empezá a encontrar prospectos hoy
+            Tu próximo cliente ya está en Google Maps
           </h2>
           <p className="mt-4 text-zinc-600">
-            Creá tu cuenta gratuita y hacé tu primera búsqueda en menos de 2 minutos.
+            Creá tu cuenta gratis, hacé tu primera búsqueda y generá un sitio web en minutos. Sin tarjeta.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
