@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Settings, DollarSign, GitBranch, Shield, CheckCircle, XCircle, User, Pencil, X, Check, Globe, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
+import { toast } from "sonner";
 
 const CURRENCIES = [
   { code: "USD", name: "Dólar estadounidense", symbol: "$" },
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const { currency, refreshCurrency } = useCurrency();
   const [localCurrency, setLocalCurrency] = useState(currency);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [editingPipeline, setEditingPipeline] = useState<string | null>(null);
@@ -71,15 +73,25 @@ export default function SettingsPage() {
   }, []);
 
   async function saveCurrency() {
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    await fetch("/api/settings/currency", {
-      method: "PUT", headers,
-      body: JSON.stringify({ currency: localCurrency }),
-    });
-    await refreshCurrency();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/settings/currency", {
+        method: "PUT", headers,
+        body: JSON.stringify({ currency: localCurrency }),
+      });
+      if (!res.ok) {
+        toast.error("No se pudo guardar la moneda. Intenta de nuevo.");
+        return;
+      }
+      await refreshCurrency();
+      setSaved(true);
+      toast.success("Moneda guardada");
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRenamePipeline(pipelineId: string) {
@@ -95,7 +107,7 @@ export default function SettingsPage() {
       setPipelines(prev => prev.map(p => p.id === pipelineId ? updated : p));
       setEditingPipeline(null);
     } else {
-      alert("Error al renombrar pipeline");
+      toast.error("Error al renombrar pipeline");
     }
   }
 
@@ -108,6 +120,9 @@ export default function SettingsPage() {
     });
     if (res.ok) {
       setPending(prev => prev.filter((m: any) => m.id !== membershipId));
+      toast.success(action === "approve" ? "Usuario aprobado" : "Usuario rechazado");
+    } else {
+      toast.error("No se pudo procesar la solicitud. Intenta de nuevo.");
     }
   }
 
@@ -153,8 +168,8 @@ export default function SettingsPage() {
               </option>
             ))}
           </select>
-          <Button onClick={saveCurrency}>
-            {saved ? "Guardado" : "Guardar moneda"}
+          <Button onClick={saveCurrency} disabled={saving}>
+            {saving ? "Guardando..." : saved ? "Guardado" : "Guardar moneda"}
           </Button>
         </div>
 

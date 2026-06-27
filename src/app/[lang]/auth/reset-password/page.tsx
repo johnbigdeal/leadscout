@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
 import { translateAuthError } from "@/lib/auth-errors";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,6 +32,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [validating, setValidating] = useState(true);
+  const [sessionValid, setSessionValid] = useState(false);
 
   useEffect(() => {
     // Supabase handles the code exchange automatically via the URL hash
@@ -39,12 +40,10 @@ export default function ResetPasswordPage() {
     async function validateSession() {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // If no session, the code might still be in the URL hash
-        // Supabase should have exchanged it automatically on load
-        // If not, we show an error
-        setAuthError("El enlace ha expirado o no es válido. Solicita uno nuevo.");
-      }
+      // If no session, the code might still be in the URL hash
+      // Supabase should have exchanged it automatically on load
+      // If not, the recovery link is invalid/expired
+      setSessionValid(!!session);
       setValidating(false);
     }
     validateSession();
@@ -86,6 +85,26 @@ export default function ResetPasswordPage() {
     );
   }
 
+  if (!sessionValid) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-background">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-display tracking-tight">Enlace no válido</CardTitle>
+            <CardDescription>
+              El enlace ha expirado o no es válido. Solicita uno nuevo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/auth/forgot-password" className={buttonVariants({ className: "w-full" })}>
+              Solicitar un nuevo enlace
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 bg-background">
@@ -123,7 +142,9 @@ export default function ResetPasswordPage() {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -136,7 +157,7 @@ export default function ResetPasswordPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -148,7 +169,9 @@ export default function ResetPasswordPage() {
               <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
               <Input
                 id="confirmPassword"
+                name="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);
@@ -163,7 +186,7 @@ export default function ResetPasswordPage() {
             </div>
 
             {authError && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                 {authError}
               </div>
             )}

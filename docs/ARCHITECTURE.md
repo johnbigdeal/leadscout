@@ -55,29 +55,27 @@
 
 ---
 
-## ADR-003: srcDoc en vez de blob URLs para published sites
+## ADR-003: Published sites servidos como documento HTML real (no iframe)
 
-**Contexto:** Los sites publicados se renderizan en un iframe. Necesitamos que los anchor links (`#servicios`, `#contacto`) funcionen.
+**Contexto:** Los sites publicados deben ser indexables por Google y mostrar previews correctos al compartir en redes (WhatsApp, Facebook, X, LinkedIn).
 
-**Opciones consideradas:**
-- `src={blobUrl}` — Crear blob URL con `URL.createObjectURL()`
-- `srcDoc={html}` — Inyectar HTML directamente en el iframe
+**Historia:** Inicialmente los sites publicados se renderizaban dentro de un `<iframe srcDoc={html}>` en una página Next.js. Problema: los crawlers leían el documento **exterior** (cuyo `<title>` era el dominio crudo y cuyo `<body>` era solo el iframe), no el HTML interior. Resultado: SEO pobre, sin meta description, previews de compartir vacíos, y título de pestaña = dominio.
 
-**Decisión:** `srcDoc={html}`
+**Decisión:** Servir el HTML generado **como el documento real** mediante un Route Handler (`src/app/site/[domain]/route.ts`) que responde `text/html`. El HTML que produce `generateHTML()` ya es un documento completo (`<!doctype html>` con su propio `<title>`, `<meta description>` y Open Graph/Twitter Cards derivados del negocio).
 
 **Razones:**
-1. **Blob URLs son temporales:** `URL.createObjectURL()` crea una URL en memoria que se invalida al navegar away o refresh. Resultado: "This site can't be reached".
-2. **Anchor links funcionan:** Con `srcDoc`, los `href="#section"` resuelven correctamente dentro del documento del iframe.
-3. **No memory leaks:** No quedan blob URLs huérfanos en memoria.
-4. **Simpler:** Un string HTML es más simple que manejar object URLs.
+1. **SEO:** Google indexa el contenido real del site, con título y descripción correctos.
+2. **Compartibilidad:** Los meta Open Graph/Twitter del `<head>` generan previews ricos al compartir.
+3. **Título de pestaña** correcto (nombre del negocio).
+4. **Anchor links** (`#servicios`, `#contacto`) siguen funcionando: es un documento real, `href="#section"` resuelve nativamente.
 
 **Trade-offs:**
-- No se puede usar `location.hash` para navegación (pero lo resolvemos con JavaScript de scroll suave)
-- El HTML se pasa como string (puede ser grande, pero manejable)
+- El 404 se devuelve como `Response` 404 (no `notFound()`).
+- Sin hidratación React en el site público (es HTML estático autónomo con estilos inline; no se necesita).
 
-**Estado:** ✅ Implementado. Published sites usan `srcDoc={html}`.
+**Estado:** ✅ Implementado. Published sites: `src/app/site/[domain]/route.ts` sirve el HTML directo.
 
-**Nota:** El builder preview también usa `srcDoc` (antes usaba blob URL, fue corregido).
+**Nota:** El **builder preview** (dentro del dashboard) sigue usando `<iframe srcDoc={html}>` — ahí sí es correcto, porque es una preview de edición en vivo, no la página pública. Antes usaba blob URLs (temporales, rompían al refresh) y fue corregido a `srcDoc`.
 
 ---
 

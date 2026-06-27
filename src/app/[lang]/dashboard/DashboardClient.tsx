@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -18,6 +18,7 @@ import {
   Globe,
   Crown,
   Zap,
+  Menu,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
@@ -30,17 +31,21 @@ function NavItem({
   icon,
   label,
   collapsed,
+  onNavigate,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
   collapsed: boolean;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + "/");
   return (
     <Link
       href={href}
+      onClick={onNavigate}
+      aria-current={isActive ? "page" : undefined}
       className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
         isActive
           ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/20"
@@ -78,21 +83,39 @@ export default function DashboardClient({
   const { currency } = useCurrency();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [dismissBanner, setDismissBanner] = useState(false);
+
+  // Persist banner dismissal so it doesn't reappear on every navigation
+  useEffect(() => {
+    if (localStorage.getItem("trialBannerDismissed") === "1") setDismissBanner(true);
+  }, []);
+
+  function dismissTrialBanner() {
+    setDismissBanner(true);
+    localStorage.setItem("trialBannerDismissed", "1");
+  }
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  }
 
   // Use the currency from context if available, otherwise fallback to server-provided
   const displayCurrency = currency || initialCurrency;
 
-  return (
-    <div className="flex min-h-screen">
-      <aside
-        className={`flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ${
-          collapsed ? "w-16" : "w-64"
-        }`}
-      >
+  const sidebarBody = (mobile: boolean) => {
+    const isCollapsed = mobile ? false : collapsed;
+    const closeOnNav = mobile ? () => setMobileOpen(false) : undefined;
+    return (
+      <>
         <div className="flex h-16 items-center border-b border-sidebar-border px-4">
-          {collapsed ? (
+          {isCollapsed ? (
             <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
               <Crosshair className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
@@ -109,55 +132,19 @@ export default function DashboardClient({
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          <NavItem
-            href="/dashboard/search"
-            icon={<Search className="h-4 w-4" />}
-            label={t("search")}
-            collapsed={collapsed}
-          />
-          <NavItem
-            href="/dashboard/results"
-            icon={<History className="h-4 w-4" />}
-            label={t("history")}
-            collapsed={collapsed}
-          />
-          <NavItem
-            href="/dashboard/crm"
-            icon={<LayoutDashboard className="h-4 w-4" />}
-            label={t("crm")}
-            collapsed={collapsed}
-          />
-          <NavItem
-            href="/dashboard/sales"
-            icon={<DollarSign className="h-4 w-4" />}
-            label={t("sales")}
-            collapsed={collapsed}
-          />
-          <NavItem
-            href="/dashboard/websites"
-            icon={<Globe className="h-4 w-4" />}
-            label="Websites"
-            collapsed={collapsed}
-          />
+          <NavItem href="/dashboard/search" icon={<Search className="h-4 w-4" />} label={t("search")} collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/results" icon={<History className="h-4 w-4" />} label={t("history")} collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/crm" icon={<LayoutDashboard className="h-4 w-4" />} label={t("crm")} collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/sales" icon={<DollarSign className="h-4 w-4" />} label={t("sales")} collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/websites" icon={<Globe className="h-4 w-4" />} label="Websites" collapsed={isCollapsed} onNavigate={closeOnNav} />
           {isSuperAdmin && (
-            <NavItem
-              href="/dashboard/admin"
-              icon={<Shield className="h-4 w-4" />}
-              label="Admin"
-              collapsed={collapsed}
-            />
+            <NavItem href="/dashboard/admin" icon={<Shield className="h-4 w-4" />} label="Admin" collapsed={isCollapsed} onNavigate={closeOnNav} />
           )}
-          <NavItem
-            href="/dashboard/settings"
-            icon={<Settings className="h-4 w-4" />}
-            label="Configuración"
-            collapsed={collapsed}
-          />
+          <NavItem href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} label="Configuración" collapsed={isCollapsed} onNavigate={closeOnNav} />
         </nav>
 
         <div className="border-t border-sidebar-border p-3 space-y-1">
-          {/* Plan badge */}
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="mb-2 flex items-center justify-center gap-1.5">
               {isSuperAdmin ? (
                 <SuperAdminBadge>Super Admin</SuperAdminBadge>
@@ -168,45 +155,95 @@ export default function DashboardClient({
               )}
             </div>
           )}
-          {plan === "free" && !isSuperAdmin && !collapsed && (
+          {plan === "free" && !isSuperAdmin && !isCollapsed && (
             <div className="flex justify-center">
               <UpgradeButton onClick={() => router.push("/dashboard/settings/plans")} />
             </div>
           )}
           <button
-            onClick={async () => {
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              router.push("/");
-            }}
-            className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground ${
-              collapsed ? "justify-center" : ""
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-60 ${
+              isCollapsed ? "justify-center" : ""
             }`}
-            title={collapsed ? t("signOut") : undefined}
+            title={isCollapsed ? t("signOut") : undefined}
           >
             <LogOut className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{t("signOut")}</span>}
+            {!isCollapsed && <span>{signingOut ? "Cerrando…" : t("signOut")}</span>}
           </button>
-          {!collapsed && (
+          {!isCollapsed && (
             <p className="text-[10px] text-sidebar-foreground/40 text-center">
               Moneda: {displayCurrency}
             </p>
           )}
         </div>
 
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center justify-center border-t border-sidebar-border p-3 text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
-        >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </button>
+        {!mobile && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
+            aria-expanded={!collapsed}
+            className="flex items-center justify-center border-t border-sidebar-border p-3 text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div className="flex min-h-screen">
+      {/* Desktop sidebar */}
+      <aside
+        className={`hidden md:flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ${
+          collapsed ? "w-16" : "w-64"
+        }`}
+      >
+        {sidebarBody(false)}
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar shadow-xl">
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Cerrar menú"
+              className="absolute right-3 top-4 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {sidebarBody(true)}
+          </aside>
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="flex h-14 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Abrir menú"
+            className="text-sidebar-foreground/80 hover:text-sidebar-foreground"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
+              <Crosshair className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
+            </div>
+            <span className="font-display text-base tracking-tight text-sidebar-foreground">
+              {t("appName")}
+            </span>
+          </div>
+        </div>
+
         {/* Trial expired overlay */}
         {trialExpired && !isSuperAdmin && !pathname.includes('/dashboard/settings/plans') && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -258,7 +295,8 @@ export default function DashboardClient({
             )}
             <UpgradeButton onClick={() => setShowUpgradeModal(true)} />
             <button
-              onClick={() => setDismissBanner(true)}
+              onClick={dismissTrialBanner}
+              aria-label="Cerrar aviso"
               className="absolute right-3 text-amber-600 hover:text-amber-800"
               title="Cerrar"
             >

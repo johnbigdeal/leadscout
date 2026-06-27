@@ -183,8 +183,9 @@ curl -I https://leadscout.lat
 - Con `proxied: true`, Vercel ve IPs de Cloudflare y no puede validar
 
 ### Website borrado pero subdominio sigue resolviendo
-- La app borra el registro DNS de Cloudflare al eliminar un website
-- Si quedó huérfano, borralo manualmente en Cloudflare → DNS → Records
+- La app borra el registro DNS de Cloudflare al eliminar o despublicar un website
+- Si quedaron huérfanos: **Settings → Dominios → "Limpiar sin usar"** elimina de golpe todos los subdominios sin sitio asociado o no publicados (DNS en Cloudflare + Vercel + DB). Equivale a `DELETE /api/cloudflare/domains?cleanup=unused`
+- Como último recurso, borralo manualmente en Cloudflare → DNS → Records
 
 ---
 

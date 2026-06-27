@@ -17,6 +17,7 @@ import {
 import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { UpgradeModal } from "@/components/upgrade-modal";
+import { toast } from "sonner";
 
 type Service = {
   id: string;
@@ -154,6 +155,7 @@ export default function SalesPage() {
   const [serviceRecurrence, setServiceRecurrence] = useState("one_time");
   const [plan, setPlan] = useState<string>("free");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function fetchServices() {
     const headers = await getAuthHeaders();
@@ -201,25 +203,35 @@ export default function SalesPage() {
 
   async function saveService() {
     if (!serviceName.trim()) return;
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    const body = { name: serviceName.trim(), defaultCost: serviceCost || "0", recurrence: serviceRecurrence };
-    if (editService) {
-      await fetch(`/api/services/${editService.id}`, { method: "PUT", headers, body: JSON.stringify(body) });
-    } else {
-      const res = await fetch("/api/services", { method: "POST", headers, body: JSON.stringify(body) });
-      if (res.status === 403) {
-        setShowServiceDialog(false);
-        setShowUpgradeModal(true);
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const body = { name: serviceName.trim(), defaultCost: serviceCost || "0", recurrence: serviceRecurrence };
+      let res: Response;
+      if (editService) {
+        res = await fetch(`/api/services/${editService.id}`, { method: "PUT", headers, body: JSON.stringify(body) });
+      } else {
+        res = await fetch("/api/services", { method: "POST", headers, body: JSON.stringify(body) });
+        if (res.status === 403) {
+          setShowServiceDialog(false);
+          setShowUpgradeModal(true);
+          return;
+        }
+      }
+      if (!res.ok) {
+        toast.error("No se pudo guardar el servicio. Intenta de nuevo.");
         return;
       }
+      setShowServiceDialog(false);
+      setEditService(null);
+      setServiceName("");
+      setServiceCost("");
+      setServiceRecurrence("one_time");
+      fetchServices();
+    } finally {
+      setSaving(false);
     }
-    setShowServiceDialog(false);
-    setEditService(null);
-    setServiceName("");
-    setServiceCost("");
-    setServiceRecurrence("one_time");
-    fetchServices();
   }
 
   async function deleteService(id: string) {
@@ -289,6 +301,7 @@ export default function SalesPage() {
           <select
             value={selectedPipelineId}
             onChange={(e) => setSelectedPipelineId(e.target.value)}
+            aria-label="Filtrar por pipeline"
             className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
             <option value="all">Todos los pipelines</option>
@@ -392,12 +405,12 @@ export default function SalesPage() {
                   <Badge variant="outline" className="border-zinc-200 text-xs">
                     {fmt(Number(s.defaultCost))}
                   </Badge>
-                  <button onClick={() => openEditService(s)} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+                  <Button variant="ghost" size="icon" onClick={() => openEditService(s)} className="h-7 w-7 text-zinc-400 hover:text-zinc-600" aria-label="Editar servicio">
                     <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => deleteService(s.id)} className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500">
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteService(s.id)} className="h-7 w-7 text-zinc-400 hover:bg-red-50 hover:text-red-500" aria-label="Eliminar servicio">
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))
@@ -421,8 +434,10 @@ export default function SalesPage() {
               <Input value={serviceName} onChange={e => setServiceName(e.target.value)} placeholder="ej. Consultoría SEO" />
             </div>
             <div>
+              {/* Stored value is treated as USD on read (convertAmount assumes USD; DB stores USD),
+                  so the input is entered and labeled as USD to stay consistent. */}
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Costo por defecto ({currency})
+                Costo por defecto (USD)
               </label>
               <Input type="number" min="0" step="0.01" value={serviceCost} onChange={e => setServiceCost(e.target.value)} placeholder="0.00" />
             </div>
@@ -433,6 +448,7 @@ export default function SalesPage() {
               <select
                 value={serviceRecurrence}
                 onChange={e => setServiceRecurrence(e.target.value)}
+                aria-label="Tipo de cobro"
                 className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
                 <option value="one_time">Único (one-time)</option>
@@ -441,8 +457,8 @@ export default function SalesPage() {
                 <option value="lifetime">Vitalicio</option>
               </select>
             </div>
-            <Button className="w-full" onClick={saveService} disabled={!serviceName.trim()}>
-              {editService ? "Guardar cambios" : "Crear servicio"}
+            <Button className="w-full" onClick={saveService} disabled={!serviceName.trim() || saving}>
+              {saving ? "Guardando..." : editService ? "Guardar cambios" : "Crear servicio"}
             </Button>
           </div>
         </DialogContent>

@@ -18,9 +18,11 @@ import {
   CreditCard,
   Trash2,
   Save,
+  Pencil,
   Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 async function getAuthHeaders() {
   const supabase = createClient();
@@ -145,11 +147,16 @@ export default function AdminDashboardPage() {
   async function handleUserAction(userId: string, action: "approve" | "reject") {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch(`/api/admin/users/${userId}/approve`, {
+    const res = await fetch(`/api/admin/users/${userId}/approve`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({ action }),
     });
+    if (!res.ok) {
+      toast.error("No se pudo procesar la solicitud. Intenta de nuevo.");
+      return;
+    }
+    toast.success(action === "approve" ? "Usuario aprobado" : "Usuario rechazado");
     fetchUsers();
     fetchStats();
   }
@@ -157,7 +164,12 @@ export default function AdminDashboardPage() {
   async function handleCancelSubscription(orgId: string) {
     if (!confirm("¿Cancelar suscripción y hacer downgrade a Free?")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/admin/subscriptions/${orgId}/cancel`, { method: "POST", headers });
+    const res = await fetch(`/api/admin/subscriptions/${orgId}/cancel`, { method: "POST", headers });
+    if (!res.ok) {
+      toast.error("No se pudo cancelar la suscripción. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Suscripción cancelada");
     fetchSubscriptions();
     fetchOrgs();
   }
@@ -183,7 +195,12 @@ export default function AdminDashboardPage() {
   async function handleDeleteSearch(searchId: string) {
     if (!confirm("¿Eliminar esta búsqueda? Se borrarán también sus resultados.")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/searches/${searchId}`, { method: "DELETE", headers });
+    const res = await fetch(`/api/searches/${searchId}`, { method: "DELETE", headers });
+    if (!res.ok) {
+      toast.error("No se pudo eliminar la búsqueda. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Búsqueda eliminada");
     fetchSearches();
     fetchStats();
   }
@@ -193,11 +210,16 @@ export default function AdminDashboardPage() {
     if (!confirm(`¿Eliminar ${selectedSearches.size} búsqueda${selectedSearches.size === 1 ? "" : "s"} seleccionada${selectedSearches.size === 1 ? "" : "s"}?`)) return;
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch("/api/admin/searches/bulk-delete", {
+    const res = await fetch("/api/admin/searches/bulk-delete", {
       method: "POST",
       headers,
       body: JSON.stringify({ ids: Array.from(selectedSearches) }),
     });
+    if (!res.ok) {
+      toast.error("No se pudieron eliminar las búsquedas. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Búsquedas eliminadas");
     setSelectedSearches(new Set());
     fetchSearches();
     fetchStats();
@@ -208,19 +230,29 @@ export default function AdminDashboardPage() {
     setExtending(orgId);
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    await fetch(`/api/admin/trials/${orgId}`, {
+    const res = await fetch(`/api/admin/trials/${orgId}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({ days }),
     });
     setExtending(null);
+    if (!res.ok) {
+      toast.error("No se pudo extender el trial. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Trial extendido");
     fetchTrials();
   }
 
   async function handleUpgradeSubscription(orgId: string) {
     if (!confirm("¿Upgrade manual a Pro?")) return;
     const headers = await getAuthHeaders();
-    await fetch(`/api/admin/subscriptions/${orgId}/upgrade`, { method: "POST", headers });
+    const res = await fetch(`/api/admin/subscriptions/${orgId}/upgrade`, { method: "POST", headers });
+    if (!res.ok) {
+      toast.error("No se pudo hacer el upgrade. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Upgrade realizado");
     fetchSubscriptions();
     fetchOrgs();
   }
@@ -335,6 +367,13 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-sm text-zinc-400">
+                    No hay usuarios registrados.
+                  </td>
+                </tr>
+              )}
               {users.map((u) => (
                 <tr key={u.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="py-3 pl-4">
@@ -350,14 +389,21 @@ export default function AdminDashboardPage() {
                     ) : (
                       <select
                         value={u.membership?.role || "member"}
+                        aria-label={`Rol de ${u.email}`}
                         onChange={async (e) => {
+                          const newRole = e.target.value;
+                          if (newRole === "superadmin" && !confirm(`¿Dar rol de superadmin a ${u.email}?`)) return;
                           const headers = await getAuthHeaders();
                           headers["Content-Type"] = "application/json";
-                          await fetch(`/api/admin/users/${u.id}`, {
+                          const res = await fetch(`/api/admin/users/${u.id}`, {
                             method: "PATCH",
                             headers,
-                            body: JSON.stringify({ role: e.target.value }),
+                            body: JSON.stringify({ role: newRole }),
                           });
+                          if (!res.ok) {
+                            alert("No se pudo cambiar el rol. Intenta de nuevo.");
+                            return;
+                          }
                           fetchUsers();
                         }}
                         className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs"
@@ -441,101 +487,25 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {orgs.map((o) => {
-                const [editingName, setEditingName] = useState(o.name);
-                const [editingCurrency, setEditingCurrency] = useState(o.currency);
-                const [isEditing, setIsEditing] = useState(false);
-
-                return (
-                  <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="py-3 pl-4">
-                      {isEditing ? (
-                        <input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          className="rounded border border-zinc-200 px-2 py-1 text-sm"
-                        />
-                      ) : (
-                        <span className="font-medium">{o.name}</span>
-                      )}
-                    </td>
-                    <td className="py-3">{o.memberCount}</td>
-                    <td className="py-3">
-                      {o.plan === "pro" ? <ProBadge>Pro</ProBadge> : <FreeBadge>Free</FreeBadge>}
-                    </td>
-                    <td className="py-3">
-                      <Badge variant="outline">{o.status}</Badge>
-                    </td>
-                    <td className="py-3">
-                      {isEditing ? (
-                        <select
-                          value={editingCurrency}
-                          onChange={(e) => setEditingCurrency(e.target.value)}
-                          className="rounded border border-zinc-200 px-2 py-1 text-xs"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="ARS">ARS</option>
-                          <option value="BRL">BRL</option>
-                          <option value="MXN">MXN</option>
-                        </select>
-                      ) : (
-                        o.currency
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-500">
-                      {new Date(o.createdAt).toLocaleDateString("es")}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <div className="flex gap-1">
-                        {isEditing ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-emerald-600"
-                            onClick={async () => {
-                              const headers = await getAuthHeaders();
-                              headers["Content-Type"] = "application/json";
-                              await fetch(`/api/admin/orgs/${o.id}`, {
-                                method: "PATCH",
-                                headers,
-                                body: JSON.stringify({ name: editingName, currency: editingCurrency }),
-                              });
-                              setIsEditing(false);
-                              fetchOrgs();
-                            }}
-                          >
-                            <Save className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-zinc-600"
-                            onClick={() => setIsEditing(true)}
-                          >
-                            ✎
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-red-600 hover:text-red-700"
-                          onClick={async () => {
-                            if (!confirm(`¿Eliminar organización "${o.name}"?\n\nSe borrarán TODOS los datos: websites, leads, búsquedas, etc. Esta acción no se puede deshacer.`)) return;
-                            const headers = await getAuthHeaders();
-                            await fetch(`/api/admin/orgs/${o.id}`, { method: "DELETE", headers });
-                            fetchOrgs();
-                            fetchStats();
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {orgs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-sm text-zinc-500">
+                    No hay organizaciones
+                  </td>
+                </tr>
+              ) : (
+                orgs.map((o) => (
+                  <OrgRow
+                    key={o.id}
+                    org={o}
+                    onSaved={fetchOrgs}
+                    onDeleted={() => {
+                      fetchOrgs();
+                      fetchStats();
+                    }}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -640,6 +610,13 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
+              {subscriptions.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-sm text-zinc-400">
+                    No hay suscripciones registradas.
+                  </td>
+                </tr>
+              )}
               {subscriptions.map((s) => (
                 <tr key={s.orgId} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="py-3 pl-4 font-mono text-xs">{s.orgId.slice(0, 8)}...</td>
@@ -723,6 +700,7 @@ export default function AdminDashboardPage() {
                   <th className="pb-3 pl-4">
                     <input
                       type="checkbox"
+                      aria-label="Seleccionar todas las búsquedas"
                       className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary"
                       checked={searches.length > 0 && searches.every((s) => selectedSearches.has(s.id))}
                       onChange={(e) => {
@@ -832,7 +810,7 @@ function StatCard({
         <span className="text-xs font-medium">{label}</span>
       </div>
       <p className={`text-2xl font-bold ${highlight ? "text-amber-700" : "text-zinc-900"}`}>
-        {value}
+        {value.toLocaleString("es")}
       </p>
     </div>
   );
@@ -858,5 +836,139 @@ function TabButton({
     >
       {label}
     </button>
+  );
+}
+
+function OrgRow({
+  org,
+  onSaved,
+  onDeleted,
+}: {
+  org: AdminOrg;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [editingName, setEditingName] = useState(org.name);
+  const [editingCurrency, setEditingCurrency] = useState(org.currency);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/admin/orgs/${org.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ name: editingName, currency: editingCurrency }),
+      });
+      if (!res.ok) {
+        alert("No se pudo guardar la organización. Intenta de nuevo.");
+        return;
+      }
+      setIsEditing(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`¿Eliminar organización "${org.name}"?\n\nSe borrarán TODOS los datos: websites, leads, búsquedas, etc. Esta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/orgs/${org.id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        alert("No se pudo eliminar la organización. Intenta de nuevo.");
+        return;
+      }
+      onDeleted();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <tr className="border-b border-zinc-100 hover:bg-zinc-50">
+      <td className="py-3 pl-4">
+        {isEditing ? (
+          <input
+            value={editingName}
+            onChange={(e) => setEditingName(e.target.value)}
+            aria-label="Nombre de la organización"
+            className="rounded border border-zinc-200 px-2 py-1 text-sm"
+          />
+        ) : (
+          <span className="font-medium">{org.name}</span>
+        )}
+      </td>
+      <td className="py-3">{org.memberCount}</td>
+      <td className="py-3">
+        {org.plan === "pro" ? <ProBadge>Pro</ProBadge> : <FreeBadge>Free</FreeBadge>}
+      </td>
+      <td className="py-3">
+        <Badge variant="outline">{org.status}</Badge>
+      </td>
+      <td className="py-3">
+        {isEditing ? (
+          <select
+            value={editingCurrency}
+            onChange={(e) => setEditingCurrency(e.target.value)}
+            aria-label="Moneda de la organización"
+            className="rounded border border-zinc-200 px-2 py-1 text-xs"
+          >
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="ARS">ARS</option>
+            <option value="BRL">BRL</option>
+            <option value="MXN">MXN</option>
+          </select>
+        ) : (
+          org.currency
+        )}
+      </td>
+      <td className="py-3 pr-4 text-zinc-500">
+        {new Date(org.createdAt).toLocaleDateString("es")}
+      </td>
+      <td className="py-3 pr-4">
+        <div className="flex gap-1">
+          {isEditing ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-emerald-600"
+              disabled={saving}
+              aria-label="Guardar cambios"
+              onClick={save}
+            >
+              <Save className="h-3.5 w-3.5" />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-zinc-600"
+              aria-label="Editar organización"
+              onClick={() => setIsEditing(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-red-600 hover:text-red-700"
+            disabled={deleting}
+            aria-label="Eliminar organización"
+            onClick={remove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }

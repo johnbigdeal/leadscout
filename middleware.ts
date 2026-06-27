@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  const langPrefix = pathname.startsWith("/es") || pathname.startsWith("/pt-BR");
+  const langPrefix = pathname.startsWith("/es");
   const isApi = pathname.startsWith("/api");
   const isStatic = pathname.startsWith("/_next") || pathname === "/favicon.ico";
 

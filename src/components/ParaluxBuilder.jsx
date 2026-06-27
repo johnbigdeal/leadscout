@@ -4,6 +4,7 @@ import {
   Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
+import { toast } from "sonner";
 
 /* =========================================================================
    PARALUX — Parallax landing builder
@@ -359,10 +360,17 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                     <span className="px-label">Estilo tipográfico</span>
                     <div className="px-presets">
                       {Object.entries(PRESETS).map(([k, v]) => (
-                        <div key={k} className={`px-preset ${d.preset === k ? "on" : ""}`} onClick={() => set("preset", k)}>
+                        <button
+                          type="button"
+                          key={k}
+                          className={`px-preset ${d.preset === k ? "on" : ""}`}
+                          aria-pressed={d.preset === k}
+                          onClick={() => set("preset", k)}
+                          style={{ font: "inherit" }}
+                        >
                           <b style={{ fontFamily: `'${v.display}', serif` }}>Aa</b>
                           <span>{v.label}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -371,7 +379,15 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                     <span className="px-label">Color de acento</span>
                     <div className="px-swatches">
                       {ACCENTS.map((a) => (
-                        <div key={a} className={`px-sw ${d.accent === a ? "on" : ""}`} style={{ background: a }} onClick={() => set("accent", a)} />
+                        <button
+                          type="button"
+                          key={a}
+                          className={`px-sw ${d.accent === a ? "on" : ""}`}
+                          style={{ background: a, padding: 0 }}
+                          aria-label={`Color de acento ${a}`}
+                          aria-pressed={d.accent === a}
+                          onClick={() => set("accent", a)}
+                        />
                       ))}
                       <input type="color" value={d.accent} onChange={(e) => set("accent", e.target.value)}
                         style={{ width: 30, height: 30, padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%" }} />
@@ -383,7 +399,14 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                     <span className="px-label">Modo oscuro de la página</span>
                     <div className="px-toggle">
                       <span style={{ fontSize: ".88rem" }}>{d.dark ? "Activado" : "Desactivado"}</span>
-                      <div className={`px-switch ${d.dark ? "on" : ""}`} onClick={() => set("dark", !d.dark)}><i /></div>
+                      <button
+                        type="button"
+                        className={`px-switch ${d.dark ? "on" : ""}`}
+                        aria-pressed={d.dark}
+                        aria-label="Modo oscuro de la página"
+                        onClick={() => set("dark", !d.dark)}
+                        style={{ border: "none", padding: 0 }}
+                      ><i /></button>
                     </div>
                   </div>
                 </>
@@ -409,7 +432,14 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                     <span className="px-label">Mostrar botón flotante</span>
                     <div className="px-toggle">
                       <span style={{ fontSize: ".88rem" }}>{d.whatsappEnabled ? "Activado" : "Desactivado"}</span>
-                      <div className={`px-switch ${d.whatsappEnabled ? "on" : ""}`} onClick={() => set("whatsappEnabled", !d.whatsappEnabled)}><i /></div>
+                      <button
+                        type="button"
+                        className={`px-switch ${d.whatsappEnabled ? "on" : ""}`}
+                        aria-pressed={d.whatsappEnabled}
+                        aria-label="Mostrar botón flotante de WhatsApp"
+                        onClick={() => set("whatsappEnabled", !d.whatsappEnabled)}
+                        style={{ border: "none", padding: 0 }}
+                      ><i /></button>
                     </div>
                   </div>
 
@@ -428,9 +458,16 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                             { k: "left", label: "Izquierda" },
                             { k: "center", label: "Centro abajo" },
                           ].map((p) => (
-                            <div key={p.k} className={`px-preset ${d.whatsappPosition === p.k ? "on" : ""}`} onClick={() => set("whatsappPosition", p.k)}>
+                            <button
+                              type="button"
+                              key={p.k}
+                              className={`px-preset ${d.whatsappPosition === p.k ? "on" : ""}`}
+                              aria-pressed={d.whatsappPosition === p.k}
+                              onClick={() => set("whatsappPosition", p.k)}
+                              style={{ font: "inherit" }}
+                            >
                               <span>{p.label}</span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -442,9 +479,16 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                             { k: "normal", label: "Normal" },
                             { k: "large", label: "Grande" },
                           ].map((s) => (
-                            <div key={s.k} className={`px-preset ${d.whatsappSize === s.k ? "on" : ""}`} onClick={() => set("whatsappSize", s.k)}>
+                            <button
+                              type="button"
+                              key={s.k}
+                              className={`px-preset ${d.whatsappSize === s.k ? "on" : ""}`}
+                              aria-pressed={d.whatsappSize === s.k}
+                              onClick={() => set("whatsappSize", s.k)}
+                              style={{ font: "inherit" }}
+                            >
                               <span>{s.label}</span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -506,6 +550,7 @@ function Field({ label, v, on, ph, hint, area }) {
 /* ---------- image field with upload ---------- */
 function ImageField({ label, value, onChange, hint }) {
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
   const isObject = value && typeof value === "object";
   const url = isObject ? value.url || "" : value || "";
 
@@ -520,17 +565,36 @@ function ImageField({ label, value, onChange, hint }) {
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError("");
+
+    if (!file.type.startsWith("image/")) {
+      const msg = "El archivo debe ser una imagen.";
+      setError(msg);
+      toast.error(msg);
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = "La imagen supera los 5MB. Probá con una más liviana.";
+      setError(msg);
+      toast.error(msg);
+      e.target.value = "";
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const { url: uploadedUrl } = await res.json();
-        updateUrl(uploadedUrl);
-      }
+      if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
+      const { url: uploadedUrl } = await res.json();
+      updateUrl(uploadedUrl);
     } catch (err) {
       console.error("Upload failed", err);
+      const msg = "No se pudo subir la imagen. Probá con otra.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
@@ -554,6 +618,7 @@ function ImageField({ label, value, onChange, hint }) {
           </span>
         </label>
       </div>
+      {error && <p className="px-hint" style={{ color: "#ff7a7a" }} role="alert">{error}</p>}
       {hint && <p className="px-hint">{hint}</p>}
     </div>
   );
@@ -675,19 +740,24 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
   const [query, setQuery] = useState(defaultQuery);
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
   async function search(q = query) {
     if (!q.trim()) return;
+    setError("");
+    setHasSearched(true);
     setLoading(true);
     try {
       const res = await fetch(`/api/images/search?q=${encodeURIComponent(q)}&per_page=12`);
-      if (res.ok) {
-        const data = await res.json();
-        setImages(data.images || []);
-      }
+      if (!res.ok) throw new Error(`Search failed with status ${res.status}`);
+      const data = await res.json();
+      setImages(data.images || []);
     } catch (e) {
       console.error("Image search error:", e);
+      setImages([]);
+      setError("No se pudieron cargar las imágenes. Revisá tu conexión e intentá de nuevo.");
     }
     setLoading(false);
   }
@@ -754,6 +824,8 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
         </div>
       )}
 
+      <style>{`.px-skeleton{background:linear-gradient(90deg,#26252f,#34323d,#26252f);background-size:200% 100%;animation:pxpulse 1.2s ease-in-out infinite;border-radius:8px}@keyframes pxpulse{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
@@ -762,7 +834,10 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
         overflowY: "auto",
         padding: 4,
       }}>
-        {images.map((img) => (
+        {loading && Array.from({ length: 6 }).map((_, i) => (
+          <div key={`sk-${i}`} className="px-skeleton" style={{ width: "100%", height: 80 }} aria-hidden="true" />
+        ))}
+        {!loading && images.map((img) => (
           <div
             key={img.id}
             onClick={() => handleSelect(img)}
@@ -810,9 +885,21 @@ function UnsplashSearch({ defaultQuery, onSelect }) {
         ))}
       </div>
 
-      {images.length === 0 && !loading && (
+      {error && !loading && (
+        <p className="px-hint" style={{ textAlign: "center", padding: "20px 0", color: "#ff7a7a" }} role="alert">
+          {error}
+        </p>
+      )}
+
+      {!error && !loading && !hasSearched && images.length === 0 && (
         <p className="px-hint" style={{ textAlign: "center", padding: "20px 0" }}>
           Escribí un término y buscá imágenes gratuitas de Unsplash.
+        </p>
+      )}
+
+      {!error && !loading && hasSearched && images.length === 0 && (
+        <p className="px-hint" style={{ textAlign: "center", padding: "20px 0" }}>
+          No encontramos imágenes para esa búsqueda. Probá con otro término.
         </p>
       )}
     </div>

@@ -22,7 +22,8 @@ Plataforma B2B para encontrar prospectos multi-canal (Google Maps, Instagram, Li
 | Estilos | Tailwind CSS | v4 + shadcn/ui + tw-animate-css |
 | DB / ORM | PostgreSQL + Drizzle ORM | postgres-js driver |
 | Auth | Supabase Auth | PKCE, cookies SSR |
-| i18n | next-intl | routing: `[lang]` (es, pt-BR) |
+| i18n | next-intl | routing: `[lang]`, solo `es` |
+| Toasts | sonner | `<Toaster>` en `[lang]/layout.tsx` |
 | Icons | Lucide React | v1.21.0 |
 | Charts | Recharts | PieChart donut |
 | Scraping | Apify SDK | actores de terceros |
@@ -34,6 +35,7 @@ Plataforma B2B para encontrar prospectos multi-canal (Google Maps, Instagram, Li
 - `zod` v4 (cuidado: API cambió — usa `.issues` en vez de `.errors`)
 - `@supabase/ssr` para server-side auth con cookies
 - `next-intl/navigation` para routing i18n
+- `sonner` para toasts (feedback de éxito/error en mutaciones; no usar `alert()`)
 
 ---
 
@@ -82,8 +84,7 @@ src/
   middleware.ts                      # Protección /dashboard/* y /api/*
   i18n/                              # Config next-intl
 messages/
-  es.json                            # Español
-  pt-BR.json                         # Portugués brasileño
+  es.json                            # Español (único locale)
 ```
 
 ---
@@ -110,10 +111,11 @@ messages/
 1. **Toda API route:** `export const dynamic = "force-dynamic"`
 2. **Auth:** Usar `requireAuth(request)` desde `@/lib/auth` (no duplicar)
 3. **Moneda:** Todo en USD en DB. Conversión en UI via `CurrencyContext`
-4. **i18n:** Strings en `messages/es.json` y `messages/pt-BR.json`
+4. **Idioma:** Español únicamente. Strings en `messages/es.json` (NO agregar pt-BR ni otros locales)
 5. **Client Components:** Agregar `"use client"` al tope
 6. **Server Components:** Obtener auth del servidor (ver `dashboard/layout.tsx`)
 7. **Zod v4:** Usar `result.error.issues` (NO `.errors`), path puede ser `string | symbol` — castear
+8. **Feedback de mutaciones:** Chequear `res.ok` y notificar con `toast` de `sonner` (`toast.success`/`toast.error`); NO usar `alert()`
 
 ---
 
@@ -128,7 +130,8 @@ messages/
 
 ### Builder + Publishing
 - **ParaluxBuilder** (`src/components/ParaluxBuilder.jsx`) — editor visual con tabs
-- **Preview** usa `srcDoc={html}` en iframe (NO blob URLs — rompen en refresh)
+- **Preview del builder** usa `srcDoc={html}` en iframe (NO blob URLs — rompen en refresh)
+- **Site público** se sirve como documento HTML real desde `src/app/site/[domain]/route.ts` (NO iframe — ver ADR-003). El HTML de `generateHTML()` ya trae `<head>` con título, meta description y Open Graph/Twitter
 - **generateHTML()** es función pura en `src/lib/paralux/generate-html.ts` (no React deps)
 - **Publish flow:**
   1. Crea CNAME en Cloudflare: `{subdomain} → cname.vercel-dns.com`
@@ -181,7 +184,7 @@ messages/
 
 Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 
-1. **`srcDoc` en vez de blob URLs** — blob URLs son temporales, rompen al refresh
+1. **Site público como documento HTML real** (route handler, no iframe) — para SEO y previews al compartir (ADR-003). El **preview del builder** sí usa `srcDoc` en iframe (blob URLs rompen al refresh)
 2. **`proxied: false` en Cloudflare** — Vercel necesita ver el CNAME real para SSL
 3. **Supabase Auth en vez de Clerk** — Precio (50k MAU free), RLS nativo, self-hostable
 4. **Auth centralizado** — Evita duplicar código en 21 API routes
@@ -199,6 +202,8 @@ Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 4. **Cloudflare OAuth:** Fue removido. Solo conexión manual con API token.
 5. **DNS propagation:** Subdominios nuevos tardan 30s-5min en propagar. El frontend hace polling.
 6. **Vercel build:** A veces TypeScript da errores de dependencias (`gel`, `mysql2`). Son falsos positivos de `drizzle-orm`, ignorar.
+7. **Subdominios huérfanos:** Si un website se borra/despublica pueden quedar subdominios sin uso. Settings → Dominios tiene "Limpiar sin usar" (`DELETE /api/cloudflare/domains?cleanup=unused`) que borra los huérfanos en Cloudflare + Vercel + DB.
+8. **SSL de subdominios (per-subdominio):** Los dominios usan nameservers de Cloudflare, así que Vercel NO auto-emite certificados wildcard. La ruta de publish usa la estrategia confiable: `ensureWildcardRecord` crea el CNAME `*.rootDomain → cname.vercel-dns.com` (solo routing) y `addDomainToVercel(fullDomain)` agrega cada subdominio al proyecto para que Vercel emita su cert vía HTTP-01 (~10–60s). No hay setup manual por dominio: cualquier dominio raíz en `availableDomains` (con su `zoneId`) funciona en la primera publicación. El fix de frontend (botón "Abrir sitio" habilitado al publicar OK) evita que el usuario quede en "Esperando DNS…" durante esa ventana.
 
 ---
 

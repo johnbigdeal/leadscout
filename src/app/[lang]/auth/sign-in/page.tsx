@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
@@ -98,7 +98,9 @@ export default function SignInPage() {
               <Label htmlFor="email">{t("email")}</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -113,17 +115,19 @@ export default function SignInPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">{t("password")}</Label>
-                <a
+                <Link
                   href="/auth/forgot-password"
                   className="text-xs text-primary hover:underline"
                 >
                   ¿Olvidaste tu contraseña?
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -136,7 +140,7 @@ export default function SignInPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -145,7 +149,7 @@ export default function SignInPage() {
             </div>
 
             {authError && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                 {authError}
               </div>
             )}
@@ -217,9 +221,9 @@ export default function SignInPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {t("noAccount")}{" "}
-            <a href="/auth/sign-up" className="font-medium text-primary hover:underline">
+            <Link href="/auth/sign-up" className="font-medium text-primary hover:underline">
               {ct("signUp")}
-            </a>
+            </Link>
           </p>
         </CardContent>
       </Card>

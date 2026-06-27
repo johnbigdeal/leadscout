@@ -146,15 +146,18 @@ TTL: 1 (auto)
 
 ## Public Site Rendering
 
-**Ubicación:** `src/app/site/[domain]/page.tsx`
+**Ubicación:** `src/app/site/[domain]/route.ts` (Route Handler, no página React)
 
 Cuando alguien visita `https://mi-negocio.leadscout.lat`:
 
 1. Middleware detecta subdomain → rewrite a `/site/[domain]`
-2. Server Component busca website por `domain` o `subdomain`
+2. El Route Handler `GET` busca website por `domain` o `subdomain`
 3. Llama `generateHTML(site.data)`
-4. Retorna `<iframe srcDoc={html}>`
-5. El HTML tiene JavaScript para anchor links funcionales
+4. Retorna el HTML directo: `new Response(html, { headers: { "content-type": "text/html" } })`
+5. El HTML es un documento completo (con `<head>`, `<title>`, meta description, Open Graph/Twitter) → indexable y compartible
+6. El HTML tiene JavaScript para anchor links funcionales
+
+> **No se usa `<iframe>` para el site público** (sí para el preview del builder). Servirlo como documento real es lo que da SEO y previews de compartir correctos. Ver `docs/ARCHITECTURE.md` ADR-003.
 
 ---
 
@@ -235,7 +238,7 @@ Al delete:
 | generateHTML | `src/lib/paralux/generate-html.ts` | Generador HTML puro |
 | category-translations | `src/lib/paralux/category-translations.ts` | Mapa ES→EN |
 | Builder Page | `src/app/[lang]/dashboard/builder/[id]/page.tsx` | Wrapper del builder |
-| Public Site | `src/app/site/[domain]/page.tsx` | Renderizado de sites publicados |
+| Public Site | `src/app/site/[domain]/route.ts` | Sirve sites publicados como HTML real (no iframe) |
 
 ---
 

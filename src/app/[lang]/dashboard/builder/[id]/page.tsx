@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Globe, Save, Loader2, Monitor, Smartphone, Sparkles, Copy, Check, ExternalLink, Crown, Zap, Download } from "lucide-react";
+import { ArrowLeft, Globe, Save, Loader2, Monitor, Smartphone, Sparkles, Copy, Check, ExternalLink, Crown, Zap, Download, CloudAlert, RefreshCw } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
+import { toast } from "sonner";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -28,6 +29,9 @@ export default function BuilderPage() {
   const [website, setWebsite] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSave = useRef<{ data: any; html: string } | null>(null);
   const [showPublish, setShowPublish] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
@@ -114,35 +118,70 @@ export default function BuilderPage() {
     const res = await fetch("/api/domains/available", { headers });
     if (res.ok) {
       const data = await res.json();
-      setAvailableDomains(data);
-      const defaultDomain = data.find((d: any) => d.isDefault);
+      /* Dedupe by domain name (a domain can exist as both global and org-scoped) */
+      const seen = new Set<string>();
+      const unique = (data as any[]).filter((d) => {
+        if (seen.has(d.domain)) return false;
+        seen.add(d.domain);
+        return true;
+      });
+      setAvailableDomains(unique);
+      const defaultDomain = unique.find((d: any) => d.isDefault);
       if (defaultDomain) setSelectedDomain(defaultDomain.domain);
-      else if (data.length > 0) setSelectedDomain(data[0].domain);
+      else if (unique.length > 0) setSelectedDomain(unique[0].domain);
     }
   }
 
-  /* Auto-save */
-  const saveData = useCallback(async (data: any, html: string) => {
+  /* Auto-save (checks the response and surfaces failures). Returns true on success. */
+  const saveData = useCallback(async (data: any, html: string): Promise<boolean> => {
     setSaving(true);
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    await fetch(`/api/websites/${websiteId}`, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ data, html }),
-    });
-    setSaving(false);
+    setSaveStatus("saving");
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(`/api/websites/${websiteId}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ data, html }),
+      });
+      if (!res.ok) {
+        setSaveStatus("error");
+        toast.error("No se pudieron guardar los cambios. Reintentando…");
+        return false;
+      }
+      pendingSave.current = null;
+      setSaveStatus("saved");
+      return true;
+    } catch {
+      setSaveStatus("error");
+      toast.error("No se pudieron guardar los cambios. Revisá tu conexión.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   }, [websiteId]);
 
-  /* Debounced auto-save */
+  /* Debounced auto-save: collapse rapid edits into one PUT */
+  const scheduleSave = useCallback((data: any, html: string) => {
+    pendingSave.current = { data, html };
+    setSaveStatus("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      if (pendingSave.current) saveData(pendingSave.current.data, pendingSave.current.html);
+    }, 800);
+  }, [saveData]);
+
+  /* Warn before leaving with an unsaved/in-flight edit */
   useEffect(() => {
-    if (!builderData) return;
-    const timer = setTimeout(() => {
-      /* Generate HTML for saving */
-      /* We'll pass a ref to the builder to get HTML */
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [builderData]);
+    const handler = (e: BeforeUnloadEvent) => {
+      if (pendingSave.current || saving) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saving]);
 
   function downloadHtml() {
     if (!currentHtml) return;
@@ -155,6 +194,15 @@ export default function BuilderPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  /* Push the latest edits to the already-published site (content only — no DNS
+     changes). The published page renders live from `data`, and saveData's PUT
+     also purges the CDN cache, so the live site reflects changes immediately. */
+  async function handleUpdate() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const ok = await saveData(builderData, currentHtml);
+    if (ok) toast.success("Sitio actualizado");
   }
 
   async function handlePublish() {
@@ -174,6 +222,7 @@ export default function BuilderPage() {
     if (res.ok) {
       const data = await res.json();
       setPublishedUrl(data.url);
+      if (data.website) setWebsite(data.website);
       setSiteReady(false);
       setCheckingStatus(true);
       setShowPublish(false);
@@ -187,8 +236,8 @@ export default function BuilderPage() {
         /* ignore clipboard errors */
       }
     } else {
-      const err = await res.json();
-      alert(err.error || "Error al publicar");
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "No se pudo publicar el sitio. Intentá de nuevo.");
     }
     setPublishing(false);
   }
@@ -228,7 +277,7 @@ export default function BuilderPage() {
       {/* Builder header */}
       <div className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/websites")}>
+          <Button variant="ghost" size="sm" aria-label="Volver a sitios web" onClick={() => router.push("/dashboard/websites")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center gap-2">
@@ -239,6 +288,23 @@ export default function BuilderPage() {
             >
               {website.status === "published" ? "Publicado" : "Borrador"}
             </Badge>
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground" aria-live="polite">
+              {saveStatus === "saving" && (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Guardando…</>
+              )}
+              {saveStatus === "saved" && (
+                <><Check className="h-3 w-3 text-emerald-500" /> Guardado</>
+              )}
+              {saveStatus === "error" && (
+                <button
+                  type="button"
+                  onClick={() => pendingSave.current && saveData(pendingSave.current.data, pendingSave.current.html)}
+                  className="flex items-center gap-1 text-destructive hover:underline"
+                >
+                  <CloudAlert className="h-3 w-3" /> Error — reintentar
+                </button>
+              )}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -250,6 +316,8 @@ export default function BuilderPage() {
                   : "text-zinc-500 hover:text-zinc-700"
               }`}
               onClick={() => setDevice("desktop")}
+              aria-pressed={device === "desktop"}
+              aria-label="Vista escritorio"
             >
               <Monitor className="h-3.5 w-3.5" />
               Escritorio
@@ -261,6 +329,8 @@ export default function BuilderPage() {
                   : "text-zinc-500 hover:text-zinc-700"
               }`}
               onClick={() => setDevice("mobile")}
+              aria-pressed={device === "mobile"}
+              aria-label="Vista móvil"
             >
               <Smartphone className="h-3.5 w-3.5" />
               Móvil
@@ -274,10 +344,23 @@ export default function BuilderPage() {
             <Download className="mr-1.5 h-4 w-4" />
             Exportar
           </Button>
-          <Button size="sm" onClick={() => setShowPublish(true)}>
-            <Globe className="mr-1.5 h-4 w-4" />
-            Publicar
-          </Button>
+          {website.status === "published" ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setShowPublish(true)}>
+                <Globe className="mr-1.5 h-4 w-4" />
+                Cambiar dominio
+              </Button>
+              <Button size="sm" onClick={handleUpdate} disabled={saving}>
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${saving ? "animate-spin" : ""}`} />
+                {saving ? "Actualizando…" : "Actualizar"}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={() => setShowPublish(true)}>
+              <Globe className="mr-1.5 h-4 w-4" />
+              Publicar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -288,7 +371,7 @@ export default function BuilderPage() {
           onChange={(data: any, html: string) => {
             setBuilderData(data);
             setCurrentHtml(html);
-            saveData(data, html);
+            scheduleSave(data, html);
           }}
           device={device}
           onDeviceChange={setDevice}
@@ -300,16 +383,21 @@ export default function BuilderPage() {
       {/* Publish dialog */}
       <Dialog open={showPublish} onOpenChange={(open) => {
         setShowPublish(open);
-        if (open && !subdomain) {
-          setSubdomain(generateSubdomain());
-        }
-        if (open && plan === "free") {
-          setSelectedDomain("leadscout.lat");
+        if (open) {
+          /* Prefill with the current published subdomain/domain if any, so
+             "Cambiar dominio" doesn't regenerate a different subdomain. */
+          if (website.subdomain) setSubdomain(website.subdomain);
+          else if (!subdomain) setSubdomain(generateSubdomain());
+          if (plan === "free") setSelectedDomain("leadscout.lat");
+          else if (website.domain && website.subdomain) {
+            const root = website.domain.replace(`${website.subdomain}.`, "");
+            if (root) setSelectedDomain(root);
+          }
         }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Publicar Website</DialogTitle>
+            <DialogTitle>{website.status === "published" ? "Cambiar dominio" : "Publicar Website"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Mode selector */}
@@ -437,19 +525,21 @@ export default function BuilderPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-2">
-            {checkingStatus ? (
-              <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                <span>Configurando DNS... Esto puede tardar unos segundos.</span>
-              </div>
-            ) : siteReady ? (
+            {siteReady ? (
               <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
                 <Check className="h-4 w-4 shrink-0" />
                 <span>Tu sitio está en línea y listo para compartir.</span>
               </div>
             ) : (
-              <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
-                <span>Tu sitio se está propagando. Puede tardar unos minutos en estar disponible globalmente.</span>
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                <Check className="h-4 w-4 shrink-0" />
+                <span>
+                  Tu sitio ya está publicado. Podés abrirlo ahora
+                  {checkingStatus && (
+                    <span className="text-emerald-600/80"> — terminando de propagar, puede tardar 1–2 min</span>
+                  )}
+                  .
+                </span>
               </div>
             )}
 
@@ -499,13 +589,12 @@ export default function BuilderPage() {
               </Button>
               <Button
                 className="flex-1"
-                disabled={!siteReady}
                 onClick={() => {
                   if (publishedUrl) window.open(publishedUrl, "_blank");
                 }}
               >
                 <ExternalLink className="mr-1.5 h-4 w-4" />
-                {siteReady ? "Abrir sitio" : "Esperando DNS..."}
+                Abrir sitio
               </Button>
             </div>
           </div>

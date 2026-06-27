@@ -106,6 +106,11 @@ export function generateHTML(d: Record<string, any>) {
   const gallery = (d.gallery || []).filter(Boolean);
   const unsplashAttributions = collectAttributions([d.heroImage, d.aboutImage, d.stmtImage, ...gallery]);
 
+  /* Social-share metadata (Open Graph / Twitter) */
+  const ogTitle = esc(d.businessName || "Mi negocio");
+  const ogDesc = esc(d.tagline || d.heroSubtext || "");
+  const ogImage = esc(imgUrl(d.heroImage) || imgUrl(d.aboutImage));
+
   const navLinks = [
     services.length ? '<a href="#servicios">Servicios</a>' : "",
     '<a href="#nosotros">Nosotros</a>',
@@ -334,6 +339,14 @@ export function generateHTML(d: Record<string, any>) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(d.businessName || "Mi negocio")}</title>
 <meta name="description" content="${esc(d.tagline || "")}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${ogTitle}">
+<meta property="og:description" content="${ogDesc}">
+${ogImage ? `<meta property="og:image" content="${ogImage}">` : ""}
+<meta name="twitter:card" content="${ogImage ? "summary_large_image" : "summary"}">
+<meta name="twitter:title" content="${ogTitle}">
+<meta name="twitter:description" content="${ogDesc}">
+${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="${p.fontsHref}" rel="stylesheet">

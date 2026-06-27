@@ -82,6 +82,8 @@ export default function SearchPage() {
           setSearchError(err.error || "Error al buscar");
         }
       }
+    } catch {
+      setSearchError("Error de conexión. Revisá tu internet e intentá de nuevo.");
     } finally {
       setSearching(false);
     }
