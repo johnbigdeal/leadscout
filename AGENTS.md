@@ -104,6 +104,8 @@ messages/
 | `CLOUDFLARE_CLIENT_ID` | OAuth client ID (legacy, no usar) |
 | `CLOUDFLARE_CLIENT_SECRET` | OAuth secret (legacy, no usar) |
 
+> **Importante:** en Vercel estas vars deben estar habilitadas para **Production _y_ Preview**. Si solo están en Production, los deploys de Preview (ramas/PRs) fallan en el build (ver Gotcha #9).
+
 ---
 
 ## Convenciones obligatorias
@@ -122,7 +124,9 @@ messages/
 ## Arquitectura clave
 
 ### Auth
-- **Middleware** (`src/middleware.ts`) protege `/dashboard/*` y `/api/*` a nivel edge
+- **Proxy** (`src/proxy.ts` — convención Next 16, único archivo. **DEBE estar en `src/`**, no en la raíz: como el proyecto usa `src/app`, Next ignora `proxy.ts`/`middleware.ts` de la raíz) maneja: redirect www→non-www, rewrite de dominios custom → `/site/[host]`, redirect de **toda ruta sin `/es`** a su equivalente `/es/...` (la app es español-only, ver `src/app/page.tsx`), y redirect de `/es/dashboard/*` sin sesión → sign-in
+- **`matcher`:** `"/((?!api|_next|.*\\..*).*)"` — corre en páginas pero **excluye** `/api`, `_next` y cualquier path con extensión (assets de `/public` como `/brand/*.png` se sirven directo)
+- **`/api/*`** NO se protege en el proxy: cada route usa `requireAuth(request)`
 - **Centralizado** en `src/lib/auth.ts` — `authenticateRequest`, `requireAuth`, `requireAdmin`
 - **21 API routes** ya refactorizadas para usar `requireAuth()`
 - **Features:** Email+password, Magic Links, forgot password, email confirmation
@@ -153,6 +157,12 @@ messages/
 - **Pipelines** personalizables por org
 - **Kanban:** Drag-and-drop entre stages
 - **Services:** Recurrencia (único, mensual, anual, lifetime)
+
+### Branding (logo + colores)
+- **Logo:** "LeadScout Modern Logo v3". Assets en `public/brand/` — `leadscout-logo[-light][@2x].png` (lockup) y `leadscout-mark[-light][@2x].png` (icono). La versión `-light` (blanco) es para fondos oscuros (sidebar navy). Favicon/app icon: `src/app/icon.png` + `apple-icon.png` (convención de archivo de Next; NO hay `favicon.ico`)
+- **Componente:** `src/components/Logo.tsx` — `<Logo variant="lockup|mark" theme="color|light" height={px} />`. Usado en el header/footer del landing y en el sidebar del dashboard
+- **Colores de marca** (LeadScout Design System de Stitch) en `globals.css`: Deep Navy `#1a2b3c` (primary/sidebar), Trust Blue `#2563eb` (accent/action/ring)
+- **Insignia "Hecho con LeadScout"** en sitios generados: la inyecta `generateHTML(data, { showBadge })` en `generate-html.ts`. **Gating por plan, server-side** en `site/[domain]/route.ts`: resuelve el plan del org dueño (`website.orgId → subscriptions`) y fuerza `showBadge=true` en **Free**; en **Pro** respeta `data.hideBadge` (toggle en la pestaña Estilo del builder). No es bypasseable editando `data` porque el plan se resuelve al servir
 
 ---
 
@@ -196,7 +206,7 @@ Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 
 ## Gotchas / Known Issues
 
-1. **Middleware deprecado:** Next.js 16 dice `middleware.ts` está deprecated, usar `proxy`. Pero `middleware.ts` sigue funcionando. Migrar a `proxy` cuando Next.js lo requiera.
+1. **Middleware → proxy (Next 16) — ubicación crítica:** El middleware es un **único** archivo `src/proxy.ts`. **Tiene que estar en `src/`** (no en la raíz): con proyectos que usan `src/app`, Next NO ejecuta `proxy.ts`/`middleware.ts` de la raíz (no tira error, simplemente lo ignora → las rutas sin prefijo dan 404 al no redirigir a `/es`). NO crear `middleware.ts` ni `src/middleware.ts` en paralelo. Si tocás el matcher, verificá con un `console.log` que el proxy realmente corre (`[PROXY HIT]`).
 2. **Zod v4 API:** `result.error.issues` en vez de `.errors`. Path puede ser `symbol`, castear a `string`.
 3. **Unsplash límite:** 50 req/hour. En producción monitorear uso.
 4. **Cloudflare OAuth:** Fue removido. Solo conexión manual con API token.
@@ -204,6 +214,7 @@ Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 6. **Vercel build:** A veces TypeScript da errores de dependencias (`gel`, `mysql2`). Son falsos positivos de `drizzle-orm`, ignorar.
 7. **Subdominios huérfanos:** Si un website se borra/despublica pueden quedar subdominios sin uso. Settings → Dominios tiene "Limpiar sin usar" (`DELETE /api/cloudflare/domains?cleanup=unused`) que borra los huérfanos en Cloudflare + Vercel + DB.
 8. **SSL de subdominios (per-subdominio):** Los dominios usan nameservers de Cloudflare, así que Vercel NO auto-emite certificados wildcard. La ruta de publish usa la estrategia confiable: `ensureWildcardRecord` crea el CNAME `*.rootDomain → cname.vercel-dns.com` (solo routing) y `addDomainToVercel(fullDomain)` agrega cada subdominio al proyecto para que Vercel emita su cert vía HTTP-01 (~10–60s). No hay setup manual por dominio: cualquier dominio raíz en `availableDomains` (con su `zoneId`) funciona en la primera publicación. El fix de frontend (botón "Abrir sitio" habilitado al publicar OK) evita que el usuario quede en "Esperando DNS…" durante esa ventana.
+9. **Deploys de Preview fallan ("supabaseUrl is required" / "Failed to collect page data"):** Las env vars están configuradas **solo para Production**. Varios clientes SDK se crean a **nivel de módulo** (`auth.ts`, varias rutas `/api/*`, `integrations/stripe.ts`, `mercadopago.ts`, `apify.ts`) y al hacer `next build` (fase "collect page data") se evalúan sin env → revientan. Por eso **Production (`main`) siempre deploya OK pero los Preview (ramas/PRs) fallan**. Fix: habilitar las env vars también para el entorno **Preview** en Vercel (Settings → Environment Variables → tildar "Preview"). Alternativa de código: instanciar esos clientes de forma lazy (no a nivel de módulo). El logo/landing igual renderiza sin env; lo que necesita env es auth/pagos/búsqueda en runtime.
 
 ---
 
@@ -213,6 +224,10 @@ Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 npm run build    # Verificar build local primero
 npx vercel --prod
 ```
+
+- **Production** (push/merge a `main`) deploya OK siempre (tiene las env vars).
+- **Preview** (ramas/PRs): requiere que las env vars estén habilitadas para el entorno Preview, si no falla el build (Gotcha #9).
+- Para reproducir el build de Preview localmente: `mv .env.local .env.local.bak && npm run build` (y restaurar después).
 
 **Nota:** Nunca usar `git commit`/`git push` a menos que el usuario lo pida explícitamente.
 

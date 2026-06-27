@@ -321,6 +321,7 @@ src/
 - Feedback asíncrono con toasts de `sonner` (`<Toaster>` montado en `[lang]/layout.tsx`); no usar `alert()`
 - Componentes UI en `src/components/ui/` (shadcn/ui v4)
 - Zod v4: usar `result.error.issues` (NO `.errors`)
+- Logo/marca: usar `<Logo>` de `@/components/Logo` (assets en `public/brand/`, `theme="light"` para fondos oscuros); colores de marca en `globals.css` (navy `#1a2b3c`, azul `#2563eb`). Sitios generados llevan la insignia "Hecho con LeadScout" (obligatoria en Free, ocultable en Pro)
 
 ---
 
@@ -333,7 +334,9 @@ npx vercel --prod  # Deploy a producción
 
 Configuración en Vercel Dashboard:
 - `maxDuration: 300` en API routes de scraping
-- Variables de entorno (ver tabla arriba)
+- Variables de entorno (ver tabla arriba) — **habilitarlas para Production _y_ Preview**
+
+> ⚠️ **Preview deploys:** si las env vars solo están en *Production*, los deploys de Preview (ramas/PRs) **fallan en el build** (`supabaseUrl is required` / `Failed to collect page data`). Varios clientes SDK (Supabase, Stripe, MercadoPago, Apify) se instancian a nivel de módulo y se evalúan en build sin env. Production (`main`) deploya OK igual; para que los Preview compilen, tildá cada var también para "Preview" en Vercel. Repro local del build de Preview: `mv .env.local .env.local.bak && npm run build` (restaurar después).
 
 ---
 
