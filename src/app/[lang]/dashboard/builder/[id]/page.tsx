@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Globe, Save, Loader2, Monitor, Smartphone, Sparkles, Copy, Check, ExternalLink, Crown, Zap, Download, CloudAlert } from "lucide-react";
+import { ArrowLeft, Globe, Save, Loader2, Monitor, Smartphone, Sparkles, Copy, Check, ExternalLink, Crown, Zap, Download, CloudAlert, RefreshCw } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { toast } from "sonner";
 
@@ -118,15 +118,22 @@ export default function BuilderPage() {
     const res = await fetch("/api/domains/available", { headers });
     if (res.ok) {
       const data = await res.json();
-      setAvailableDomains(data);
-      const defaultDomain = data.find((d: any) => d.isDefault);
+      /* Dedupe by domain name (a domain can exist as both global and org-scoped) */
+      const seen = new Set<string>();
+      const unique = (data as any[]).filter((d) => {
+        if (seen.has(d.domain)) return false;
+        seen.add(d.domain);
+        return true;
+      });
+      setAvailableDomains(unique);
+      const defaultDomain = unique.find((d: any) => d.isDefault);
       if (defaultDomain) setSelectedDomain(defaultDomain.domain);
-      else if (data.length > 0) setSelectedDomain(data[0].domain);
+      else if (unique.length > 0) setSelectedDomain(unique[0].domain);
     }
   }
 
-  /* Auto-save (checks the response and surfaces failures) */
-  const saveData = useCallback(async (data: any, html: string) => {
+  /* Auto-save (checks the response and surfaces failures). Returns true on success. */
+  const saveData = useCallback(async (data: any, html: string): Promise<boolean> => {
     setSaving(true);
     setSaveStatus("saving");
     try {
@@ -140,13 +147,15 @@ export default function BuilderPage() {
       if (!res.ok) {
         setSaveStatus("error");
         toast.error("No se pudieron guardar los cambios. Reintentando…");
-        return;
+        return false;
       }
       pendingSave.current = null;
       setSaveStatus("saved");
+      return true;
     } catch {
       setSaveStatus("error");
       toast.error("No se pudieron guardar los cambios. Revisá tu conexión.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -187,6 +196,15 @@ export default function BuilderPage() {
     URL.revokeObjectURL(url);
   }
 
+  /* Push the latest edits to the already-published site (content only — no DNS
+     changes). The published page renders live from `data`, and saveData's PUT
+     also purges the CDN cache, so the live site reflects changes immediately. */
+  async function handleUpdate() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const ok = await saveData(builderData, currentHtml);
+    if (ok) toast.success("Sitio actualizado");
+  }
+
   async function handlePublish() {
     setPublishing(true);
     const headers = await getAuthHeaders();
@@ -204,6 +222,7 @@ export default function BuilderPage() {
     if (res.ok) {
       const data = await res.json();
       setPublishedUrl(data.url);
+      if (data.website) setWebsite(data.website);
       setSiteReady(false);
       setCheckingStatus(true);
       setShowPublish(false);
@@ -325,10 +344,23 @@ export default function BuilderPage() {
             <Download className="mr-1.5 h-4 w-4" />
             Exportar
           </Button>
-          <Button size="sm" onClick={() => setShowPublish(true)}>
-            <Globe className="mr-1.5 h-4 w-4" />
-            Publicar
-          </Button>
+          {website.status === "published" ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setShowPublish(true)}>
+                <Globe className="mr-1.5 h-4 w-4" />
+                Cambiar dominio
+              </Button>
+              <Button size="sm" onClick={handleUpdate} disabled={saving}>
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${saving ? "animate-spin" : ""}`} />
+                {saving ? "Actualizando…" : "Actualizar"}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={() => setShowPublish(true)}>
+              <Globe className="mr-1.5 h-4 w-4" />
+              Publicar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -351,16 +383,21 @@ export default function BuilderPage() {
       {/* Publish dialog */}
       <Dialog open={showPublish} onOpenChange={(open) => {
         setShowPublish(open);
-        if (open && !subdomain) {
-          setSubdomain(generateSubdomain());
-        }
-        if (open && plan === "free") {
-          setSelectedDomain("leadscout.lat");
+        if (open) {
+          /* Prefill with the current published subdomain/domain if any, so
+             "Cambiar dominio" doesn't regenerate a different subdomain. */
+          if (website.subdomain) setSubdomain(website.subdomain);
+          else if (!subdomain) setSubdomain(generateSubdomain());
+          if (plan === "free") setSelectedDomain("leadscout.lat");
+          else if (website.domain && website.subdomain) {
+            const root = website.domain.replace(`${website.subdomain}.`, "");
+            if (root) setSelectedDomain(root);
+          }
         }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Publicar Website</DialogTitle>
+            <DialogTitle>{website.status === "published" ? "Cambiar dominio" : "Publicar Website"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Mode selector */}
@@ -488,19 +525,21 @@ export default function BuilderPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-2">
-            {checkingStatus ? (
-              <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                <span>Configurando DNS... Esto puede tardar unos segundos.</span>
-              </div>
-            ) : siteReady ? (
+            {siteReady ? (
               <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
                 <Check className="h-4 w-4 shrink-0" />
                 <span>Tu sitio está en línea y listo para compartir.</span>
               </div>
             ) : (
-              <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
-                <span>Tu sitio se está propagando. Puede tardar unos minutos en estar disponible globalmente.</span>
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                <Check className="h-4 w-4 shrink-0" />
+                <span>
+                  Tu sitio ya está publicado. Podés abrirlo ahora
+                  {checkingStatus && (
+                    <span className="text-emerald-600/80"> — terminando de propagar, puede tardar 1–2 min</span>
+                  )}
+                  .
+                </span>
               </div>
             )}
 
@@ -550,13 +589,12 @@ export default function BuilderPage() {
               </Button>
               <Button
                 className="flex-1"
-                disabled={!siteReady}
                 onClick={() => {
                   if (publishedUrl) window.open(publishedUrl, "_blank");
                 }}
               >
                 <ExternalLink className="mr-1.5 h-4 w-4" />
-                {siteReady ? "Abrir sitio" : "Esperando DNS..."}
+                Abrir sitio
               </Button>
             </div>
           </div>

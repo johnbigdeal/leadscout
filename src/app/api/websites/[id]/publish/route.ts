@@ -6,6 +6,7 @@ import { eq, and, or } from "drizzle-orm";
 import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /* Cloudflare API helper */
 async function cfRequest(token: string, path: string, opts?: RequestInit) {
@@ -77,6 +78,29 @@ async function cfPurgeCache(token: string, zoneId: string, urls: string[]) {
   } catch (e: any) {
     console.error("Cloudflare purge cache error:", e.message);
   }
+}
+
+/* Create a DNS record if it doesn't already exist (idempotent); update its
+   content if it drifted. `name` must be the full hostname (apex = the root
+   domain itself, e.g. "sitio.com"; or "www.sitio.com"). Returns the record id. */
+async function ensureDnsRecord(token: string, zoneId: string, type: string, name: string, content: string) {
+  const existing = await cfRequest(token, `/zones/${zoneId}/dns_records?type=${type}&name=${name}`);
+  if (existing && existing.length > 0) {
+    const rec = existing[0];
+    if (rec.content !== content) {
+      const updated = await cfRequest(token, `/zones/${zoneId}/dns_records/${rec.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ type, name, content, ttl: 1, proxied: false }),
+      });
+      return updated.id;
+    }
+    return rec.id;
+  }
+  const created = await cfRequest(token, `/zones/${zoneId}/dns_records`, {
+    method: "POST",
+    body: JSON.stringify({ type, name, content, ttl: 1, proxied: false }),
+  });
+  return created.id;
 }
 
 /* Ensure wildcard CNAME exists for a root domain */
@@ -163,29 +187,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const resolvedZoneId = zones[0].id;
 
-    /* Create A record @ → 76.76.21.21 */
-    const apexRecord = await cfRequest(cfToken, `/zones/${resolvedZoneId}/dns_records`, {
-      method: "POST",
-      body: JSON.stringify({
-        type: "A",
-        name: "@",
-        content: "76.76.21.21",
-        ttl: 1,
-        proxied: false,
-      }),
-    });
-
-    /* Create CNAME www → cname.vercel-dns.com */
-    const wwwRecord = await cfRequest(cfToken, `/zones/${resolvedZoneId}/dns_records`, {
-      method: "POST",
-      body: JSON.stringify({
-        type: "CNAME",
-        name: "www",
-        content: "cname.vercel-dns.com",
-        ttl: 1,
-        proxied: false,
-      }),
-    });
+    /* Apex A record (@ → 76.76.21.21) and www CNAME → cname.vercel-dns.com.
+       Idempotent: reused on re-publish instead of failing with "already exists". */
+    const apexRecordId = await ensureDnsRecord(cfToken, resolvedZoneId, "A", cleanDomain, "76.76.21.21");
+    const wwwRecordId = await ensureDnsRecord(cfToken, resolvedZoneId, "CNAME", `www.${cleanDomain}`, "cname.vercel-dns.com");
 
     /* Add to Vercel */
     await addDomainToVercel(project.id, cleanDomain);
@@ -202,7 +207,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       rootDomain: cleanDomain,
       subdomain: "@",
       zoneId: resolvedZoneId,
-      dnsRecordId: apexRecord.id,
+      dnsRecordId: apexRecordId,
       recordType: "A",
       target: "76.76.21.21",
       status: "active",
@@ -214,7 +219,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       rootDomain: cleanDomain,
       subdomain: "www",
       zoneId: resolvedZoneId,
-      dnsRecordId: wwwRecord.id,
+      dnsRecordId: wwwRecordId,
       recordType: "CNAME",
       target: "cname.vercel-dns.com",
       status: "active",
@@ -362,10 +367,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  /* Add to Vercel */
+  /* Add the specific subdomain to Vercel so it gets its own SSL cert (HTTP-01).
+     The wildcard CNAME above only handles DNS routing; the per-subdomain add is
+     what actually provisions the certificate (wildcard certs are not auto-issued
+     for Cloudflare-nameserver domains). */
   await addDomainToVercel(project.id, fullDomain);
 
-  /* Save to DB (dnsRecordId = null because wildcard handles DNS) */
+  /* Save to DB (dnsRecordId = null because the wildcard CNAME handles routing) */
   const zId: string = resolvedZoneId;
   if (existing.length > 0) {
     await db.update(customDomains)

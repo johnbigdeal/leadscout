@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   const ctx = result.ctx;
 
   const limits = await getPlanLimits(ctx.orgId);
+  /* Superadmins get full Pro access everywhere (matches dashboard layout's
+     effectivePlan and the publish route's superadmin bypass). */
+  const effectivePlan = ctx.isSuperAdmin ? "pro" : limits.plan;
 
   const plans = [
     {
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
         "Sin dominios personalizados",
         "Sin conexión Cloudflare propia",
       ],
-      current: limits.plan === "free",
+      current: effectivePlan === "free",
     },
     {
       id: "pro-monthly",
@@ -59,7 +62,7 @@ export async function GET(request: Request) {
         "Soporte prioritario",
       ],
       limitations: [],
-      current: limits.plan === "pro",
+      current: effectivePlan === "pro",
       popular: true,
     },
     {
@@ -76,15 +79,15 @@ export async function GET(request: Request) {
         "Soporte prioritario",
       ],
       limitations: [],
-      current: limits.plan === "pro",
+      current: effectivePlan === "pro",
       discount: "Ahorra $140",
     },
   ];
 
   return NextResponse.json({
-    currentPlan: limits.plan,
+    currentPlan: effectivePlan,
     plans,
-    trialExpired: limits.trialExpired,
+    trialExpired: ctx.isSuperAdmin ? false : limits.trialExpired,
     trialEndsAt: limits.trialEndsAt,
     daysUntilDeletion: limits.daysUntilDeletion,
   });

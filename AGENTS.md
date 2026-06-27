@@ -203,6 +203,7 @@ Ver `docs/ARCHITECTURE.md` para el detalle completo. Resumen:
 5. **DNS propagation:** Subdominios nuevos tardan 30s-5min en propagar. El frontend hace polling.
 6. **Vercel build:** A veces TypeScript da errores de dependencias (`gel`, `mysql2`). Son falsos positivos de `drizzle-orm`, ignorar.
 7. **Subdominios huérfanos:** Si un website se borra/despublica pueden quedar subdominios sin uso. Settings → Dominios tiene "Limpiar sin usar" (`DELETE /api/cloudflare/domains?cleanup=unused`) que borra los huérfanos en Cloudflare + Vercel + DB.
+8. **SSL de subdominios (per-subdominio):** Los dominios usan nameservers de Cloudflare, así que Vercel NO auto-emite certificados wildcard. La ruta de publish usa la estrategia confiable: `ensureWildcardRecord` crea el CNAME `*.rootDomain → cname.vercel-dns.com` (solo routing) y `addDomainToVercel(fullDomain)` agrega cada subdominio al proyecto para que Vercel emita su cert vía HTTP-01 (~10–60s). No hay setup manual por dominio: cualquier dominio raíz en `availableDomains` (con su `zoneId`) funciona en la primera publicación. El fix de frontend (botón "Abrir sitio" habilitado al publicar OK) evita que el usuario quede en "Esperando DNS…" durante esa ventana.
 
 ---
 
