@@ -2,7 +2,7 @@
  * Plan limits and enforcement logic for Free vs Pro tiers.
  */
 import { db } from "./db";
-import { subscriptions, pipelines, services, leadCategories, leads } from "./db/schema";
+import { subscriptions, pipelines, services, leadCategories, leads, searches } from "./db/schema";
 import { eq, and, gte, count, countDistinct, sql } from "drizzle-orm";
 
 export interface PlanLimits {
@@ -24,7 +24,7 @@ export interface PlanLimits {
 /**
  * Get plan limits for an organization.
  */
-export async function getPlanLimits(orgId: string): Promise<PlanLimits> {
+export async function getPlanLimits(orgId: string, userId?: string): Promise<PlanLimits> {
   const [sub] = await db
     .select()
     .from(subscriptions)
@@ -99,16 +99,27 @@ export async function getPlanLimits(orgId: string): Promise<PlanLimits> {
       ? 30
       : null;
 
-  if (sub.searchesResetAt && sub.searchesResetAt < startOfToday) {
-    /* Reset counter */
-    await db
-      .update(subscriptions)
-      .set({ searchesToday: 0, searchesResetAt: now })
-      .where(eq(subscriptions.orgId, orgId));
-    sub.searchesToday = 0;
+  let usedToday: number;
+  if (userId) {
+    /* Per-user daily limit: count this user's own searches created today. */
+    const [r] = await db
+      .select({ n: count() })
+      .from(searches)
+      .where(and(eq(searches.createdBy, userId), gte(searches.createdAt, startOfToday)));
+    usedToday = Number(r?.n ?? 0);
+  } else {
+    /* Org-level fallback (legacy counter) when no user context is provided. */
+    if (sub.searchesResetAt && sub.searchesResetAt < startOfToday) {
+      await db
+        .update(subscriptions)
+        .set({ searchesToday: 0, searchesResetAt: now })
+        .where(eq(subscriptions.orgId, orgId));
+      sub.searchesToday = 0;
+    }
+    usedToday = sub.searchesToday || 0;
   }
 
-  const searchesRemaining = Math.max(0, 1 - (sub.searchesToday || 0));
+  const searchesRemaining = Math.max(0, 1 - usedToday);
 
   /* Count existing pipelines */
   const existingPipelines = await db

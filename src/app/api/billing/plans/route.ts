@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (result.response) return result.response;
   const ctx = result.ctx;
 
-  const limits = await getPlanLimits(ctx.orgId);
+  const limits = await getPlanLimits(ctx.orgId, ctx.user.id);
   /* Superadmins get full Pro access everywhere (matches dashboard layout's
      effectivePlan and the publish route's superadmin bypass). */
   const effectivePlan = ctx.isSuperAdmin ? "pro" : limits.plan;
@@ -39,6 +39,7 @@ export async function GET(request: Request) {
         "Sin conexión Cloudflare propia",
       ],
       current: effectivePlan === "free",
+      searchesRemaining: limits.searchesRemaining,
     },
     {
       id: "pro-monthly",
