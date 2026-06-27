@@ -9,7 +9,7 @@ import { eq, and, gt, or, ilike } from "drizzle-orm";
 import { startGooglePlacesSearch, searchInstagram, scrapeLinkedInComments, apifyClient } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
 import { scrapeWebsiteContact } from "@/lib/integrations/scraper";
-import { getPlanLimits, incrementSearchCount } from "@/lib/plans";
+import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -348,17 +348,19 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = profile?.role === "super_admin";
 
-  /* Check plan limits - Free: 1 search/day. Super admin bypass. */
-  let searchesRemaining = Infinity;
+  /* Check plan limits - Free: 1 search/day per user. Super admin bypass. */
   if (!isSuperAdmin) {
-    const limits = await getPlanLimits(orgId);
+    const limits = await getPlanLimits(orgId, user.id);
     if (!limits.canSearch) {
       return NextResponse.json(
-        { error: "Límite de búsquedas alcanzado. Upgrade a Pro para búsquedas ilimitadas." },
+        {
+          error: limits.trialExpired
+            ? "Tu prueba gratuita terminó. Upgrade a Pro para seguir buscando."
+            : "Alcanzaste tu búsqueda diaria. Volvé mañana o upgrade a Pro para búsquedas ilimitadas.",
+        },
         { status: 429 }
       );
     }
-    searchesRemaining = limits.searchesRemaining;
   }
 
   const [search] = await db
@@ -367,11 +369,6 @@ export async function POST(request: Request) {
     .returning();
 
   await runPipeline(search.id, orgId, keywords, location, channels, linkedinUrls);
-
-  /* Increment search counter - skip for super admin */
-  if (!isSuperAdmin) {
-    await incrementSearchCount(orgId);
-  }
 
   const updated = await db.select({ status: searches.status }).from(searches).where(eq(searches.id, search.id)).limit(1);
   return NextResponse.json({ searchId: search.id, status: updated[0]?.status ?? "error" });
