@@ -30,6 +30,21 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = user.email === "johnbigdeal@gmail.com";
 
+  /* Idempotente: si el usuario ya tiene membership, devolvemos su org existente
+     en vez de crear una duplicada. Cubre reintentos y el caso de una cuenta que
+     quedó a medias (perfil sin org): al reintentar se completa abajo. */
+  const [existingMembership] = await db
+    .select({ orgId: memberships.orgId, approved: memberships.approved })
+    .from(memberships)
+    .where(eq(memberships.userId, userId))
+    .limit(1);
+  if (existingMembership) {
+    return NextResponse.json({
+      orgId: existingMembership.orgId,
+      approved: existingMembership.approved,
+    });
+  }
+
   /* Resolve referrer from the referral code (must exist and not be self). */
   let referredBy: string | null = null;
   if (referralCode && typeof referralCode === "string") {
@@ -42,43 +57,51 @@ export async function POST(request: Request) {
   }
 
   const newReferralCode = await generateUniqueReferralCode();
-
-  const [org] = await db
-    .insert(organizations)
-    .values({ name: orgName })
-    .returning();
-
-  await db.insert(profiles).values({
-    id: userId,
-    email: user.email!,
-    role: isSuperAdmin ? "super_admin" : "user",
-    referralCode: newReferralCode,
-    referredBy,
-  }).onConflictDoNothing();
-
-  await db.insert(memberships).values({
-    orgId: org.id,
-    userId,
-    role: isSuperAdmin ? "superadmin" : "owner",
-    /* Self-serve: las cuentas nuevas entran directo (sin aprobación manual). */
-    approved: true,
-  });
-
   const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  await db.insert(subscriptions).values({
-    orgId: org.id,
-    plan: "free",
-    searchQuota: 50,
-    trialEndsAt,
+  /* Todo en una transacción: si algo falla, se revierte completo. Evita cuentas
+     a medias (perfil sin org/membership) y organizaciones huérfanas. */
+  const orgId = await db.transaction(async (tx) => {
+    const [org] = await tx
+      .insert(organizations)
+      .values({ name: orgName })
+      .returning();
+
+    await tx
+      .insert(profiles)
+      .values({
+        id: userId,
+        email: user.email!,
+        role: isSuperAdmin ? "super_admin" : "user",
+        referralCode: newReferralCode,
+        referredBy,
+      })
+      .onConflictDoNothing();
+
+    await tx.insert(memberships).values({
+      orgId: org.id,
+      userId,
+      role: isSuperAdmin ? "superadmin" : "owner",
+      /* Self-serve: las cuentas nuevas entran directo (sin aprobación manual). */
+      approved: true,
+    });
+
+    await tx.insert(subscriptions).values({
+      orgId: org.id,
+      plan: "free",
+      searchQuota: 50,
+      trialEndsAt,
+    });
+
+    await tx.insert(pipelines).values({
+      orgId: org.id,
+      name: "Ventas",
+      category: "General",
+      stages: ["new", "contacted", "qualified", "won", "lost"],
+    });
+
+    return org.id;
   });
 
-  await db.insert(pipelines).values({
-    orgId: org.id,
-    name: "Ventas",
-    category: "General",
-    stages: ["new", "contacted", "qualified", "won", "lost"],
-  });
-
-  return NextResponse.json({ orgId: org.id, approved: true });
+  return NextResponse.json({ orgId, approved: true });
 }
