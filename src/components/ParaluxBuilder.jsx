@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Sparkles, Globe, Monitor, Smartphone, MessageCircle, Plus,
-  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search
+  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search, Star
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
 import { toast } from "sonner";
@@ -67,7 +67,24 @@ const DEFAULT = {
     { title: "Consultoría", desc: "Acompañamiento y dirección creativa para tu obra, remodelación o nuevo espacio." },
   ],
   galleryTitle: "Proyectos recientes",
-  gallery: [],
+  gallery: [
+    { url: "https://picsum.photos/seed/lumeng1/900/1100" },
+    { url: "https://picsum.photos/seed/lumeng2/900/1100" },
+    { url: "https://picsum.photos/seed/lumeng3/900/1100" },
+  ],
+  googleReviewsTitle: "Lo que dicen nuestros clientes",
+  googleReviewUrl: "",
+  googleReviews: [
+    { author: "María González", rating: 5, text: "Excelente atención y un resultado impecable. Superaron nuestras expectativas." },
+    { author: "Carlos Ramírez", rating: 5, text: "Profesionales, puntuales y con muchísimo gusto. Recomendados al 100%." },
+    { author: "Lucía Fernández", rating: 5, text: "Transformaron por completo nuestro espacio. Volveríamos a contratarlos sin dudar." },
+  ],
+  socialTitle: "Conectá con nosotros",
+  socialLinks: [
+    { type: "instagram", url: "https://instagram.com/" },
+    { type: "facebook", url: "" },
+    { type: "whatsapp", url: "" },
+  ],
   ctaTitle: "Cuéntanos sobre tu proyecto",
   ctaSubtext: "Respondemos rápido. Escríbenos y agendemos una conversación sin compromiso.",
   contactCtaText: "Escribir por WhatsApp",
@@ -197,9 +214,21 @@ const BUILDER_CSS = `
 const TABS = [
   { id: "contenido", label: "Contenido", icon: FileText },
   { id: "imagenes", label: "Imágenes", icon: Layers },
+  { id: "resenas", label: "Reseñas", icon: Star },
   { id: "estilo", label: "Estilo", icon: Palette },
   { id: "contacto", label: "Contacto", icon: Phone },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+];
+
+const SOCIAL_TYPES = [
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "youtube", label: "YouTube" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "x", label: "X" },
+  { value: "website", label: "Sitio web" },
 ];
 
 function normalizeImage(img) {
@@ -245,6 +274,18 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
   const addGallery = () => set("gallery", [...(d.gallery || []), { url: "" }]);
   const updGallery = (i, v) => set("gallery", d.gallery.map((g, idx) => (idx === i ? v : g)));
   const delGallery = (i) => set("gallery", d.gallery.filter((_, idx) => idx !== i));
+
+  /* google reviews helpers */
+  const addReview = () => set("googleReviews", [...(d.googleReviews || []), { author: "", rating: 5, text: "" }]);
+  const updReview = (i, k, v) =>
+    set("googleReviews", d.googleReviews.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  const delReview = (i) => set("googleReviews", d.googleReviews.filter((_, idx) => idx !== i));
+
+  /* social links helpers */
+  const addSocial = () => set("socialLinks", [...(d.socialLinks || []), { type: "instagram", url: "" }]);
+  const updSocial = (i, k, v) =>
+    set("socialLinks", d.socialLinks.map((s, idx) => (idx === i ? { ...s, [k]: v } : s)));
+  const delSocial = (i) => set("socialLinks", d.socialLinks.filter((_, idx) => idx !== i));
 
   const frameSize =
     internalDevice === "desktop"
@@ -354,6 +395,45 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                 </>
               )}
 
+              {tab === "resenas" && (
+                <>
+                  <div className="px-sub" style={{ marginTop: 0 }}>Reseñas de Google</div>
+                  <Field label="Título de la sección" v={d.googleReviewsTitle} on={(v) => set("googleReviewsTitle", v)} ph="Lo que dicen nuestros clientes" />
+                  <Field
+                    label="Enlace para dejar reseña en Google"
+                    v={d.googleReviewUrl}
+                    on={(v) => set("googleReviewUrl", v)}
+                    ph="https://g.page/r/..."
+                    hint="El botón “Dejá tu reseña en Google” lleva a este enlace. Sacalo del perfil de Google de tu negocio."
+                  />
+
+                  <div className="px-sub">
+                    Reseñas <span style={{ color: "var(--lo)", fontWeight: 400, fontSize: ".72rem" }}>{(d.googleReviews || []).length}</span>
+                  </div>
+                  {(d.googleReviews || []).map((r, i) => (
+                    <div className="px-rep" key={i}>
+                      <button className="del" onClick={() => delReview(i)}><Trash2 size={14} /></button>
+                      <Field label={`Cliente ${i + 1}`} v={r.author} on={(v) => updReview(i, "author", v)} ph="María González" />
+                      <div className="px-field">
+                        <span className="px-label">Estrellas</span>
+                        <select
+                          className="px-input"
+                          value={r.rating || 5}
+                          aria-label={`Estrellas de la reseña ${i + 1}`}
+                          onChange={(e) => updReview(i, "rating", Number(e.target.value))}
+                        >
+                          {[5, 4, 3, 2, 1].map((n) => (
+                            <option key={n} value={n}>{"★".repeat(n)}{"☆".repeat(5 - n)} ({n})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <Field label="Reseña" v={r.text} on={(v) => updReview(i, "text", v)} area ph="Excelente atención y resultado impecable." />
+                    </div>
+                  ))}
+                  <button className="px-add" onClick={addReview}><Plus size={15} /> Agregar reseña</button>
+                </>
+              )}
+
               {tab === "estilo" && (
                 <>
                   <div className="px-field">
@@ -419,10 +499,36 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                   <Field label="Teléfono visible" v={d.phone} on={(v) => set("phone", v)} ph="+52 ..." />
                   <Field label="Ubicación" v={d.location} on={(v) => set("location", v)} ph="Ciudad de México" />
 
-                  <div className="px-sub">Redes sociales</div>
+                  <div className="px-sub">Enlaces del pie</div>
                   <Field label="Instagram (URL)" v={d.instagram} on={(v) => set("instagram", v)} ph="https://instagram.com/..." />
                   <Field label="Facebook (URL)" v={d.facebook} on={(v) => set("facebook", v)} ph="https://facebook.com/..." />
                   <Field label="Sitio web (URL)" v={d.website} on={(v) => set("website", v)} ph="https://..." />
+
+                  <div className="px-sub">
+                    Sección de redes (botones) <span style={{ color: "var(--lo)", fontWeight: 400, fontSize: ".72rem" }}>{(d.socialLinks || []).length}</span>
+                  </div>
+                  <Field label="Título de la sección" v={d.socialTitle} on={(v) => set("socialTitle", v)} ph="Conectá con nosotros" />
+                  {(d.socialLinks || []).map((s, i) => (
+                    <div className="px-rep" key={i}>
+                      <button className="del" onClick={() => delSocial(i)}><Trash2 size={14} /></button>
+                      <div className="px-field">
+                        <span className="px-label">Red</span>
+                        <select
+                          className="px-input"
+                          value={s.type}
+                          aria-label={`Red social ${i + 1}`}
+                          onChange={(e) => updSocial(i, "type", e.target.value)}
+                        >
+                          {SOCIAL_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <Field label="Enlace (URL)" v={s.url} on={(v) => updSocial(i, "url", v)} ph="https://..." />
+                    </div>
+                  ))}
+                  <button className="px-add" onClick={addSocial}><Plus size={15} /> Agregar red social</button>
+                  <p className="px-hint">Los botones usan el color de acento de tu marca (editable en la pestaña Estilo).</p>
                 </>
               )}
 

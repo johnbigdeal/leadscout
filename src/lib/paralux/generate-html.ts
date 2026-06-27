@@ -112,8 +112,9 @@ export function generateHTML(d: Record<string, any>) {
   const ogImage = esc(imgUrl(d.heroImage) || imgUrl(d.aboutImage));
 
   const navLinks = [
-    services.length ? '<a href="#servicios">Servicios</a>' : "",
+    '<a href="#inicio">Inicio</a>',
     '<a href="#nosotros">Nosotros</a>',
+    services.length ? '<a href="#servicios">Servicios</a>' : "",
     gallery.length ? '<a href="#galeria">Proyectos</a>' : "",
     '<a href="#contacto">Contacto</a>',
   ]
@@ -177,6 +178,68 @@ export function generateHTML(d: Record<string, any>) {
   ]
     .filter(Boolean)
     .join("");
+
+  /* ─── Google Reviews section ─── */
+  const reviews = (d.googleReviews || []).filter((r: any) => r.text || r.author);
+  const starRow = (rating: number, inline = false) => {
+    const full = Math.max(0, Math.min(5, Math.round(rating || 5)));
+    let s = "";
+    for (let i = 0; i < 5; i++) {
+      s += `<span class="star${i < full ? " on" : ""}" style="animation-delay:${i * 120}ms">★</span>`;
+    }
+    return `<span class="stars${inline ? " stars--inline" : ""}">${s}</span>`;
+  };
+  const reviewsHTML = reviews.length || d.googleReviewUrl
+    ? `<section id="resenas" class="section reviews">
+        <div class="wrap">
+          <p class="eyebrow reveal">Reseñas en Google</p>
+          <h2 class="reveal">${esc(d.googleReviewsTitle || "Lo que dicen nuestros clientes")}</h2>
+          ${reviews.length ? `<div class="reviews-grid">
+            ${reviews.map((r: any, i: number) => `
+            <article class="review reveal" style="transition-delay:${(i % 3) * 90}ms">
+              ${starRow(r.rating)}
+              <p class="review-text">${esc(r.text || "")}</p>
+              <p class="review-author">${esc(r.author || "")}</p>
+            </article>`).join("")}
+          </div>` : ""}
+          ${d.googleReviewUrl ? `<div class="reveal review-cta" style="transition-delay:120ms">
+            <a class="btn btn--review" href="${esc(d.googleReviewUrl)}" target="_blank" rel="noopener">${starRow(5, true)} Dejá tu reseña en Google →</a>
+          </div>` : ""}
+        </div>
+      </section>`
+    : "";
+
+  /* ─── Social media section ─── */
+  const SOCIAL_ICONS: Record<string, string> = {
+    instagram: '<svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.43.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.43.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 01-1.38-.9 3.7 3.7 0 01-.9-1.38c-.16-.43-.36-1.06-.41-2.23C2.21 15.58 2.2 15.2 2.2 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.43-.16 1.06-.36 2.23-.41C8.42 2.21 8.8 2.2 12 2.2zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.3-1.46.72-2.13 1.38C1.35 2.68.93 3.35.63 4.14.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.3.79.72 1.46 1.38 2.13.67.66 1.34 1.08 2.13 1.38.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.7 5.7 0 002.13-1.38 5.7 5.7 0 001.38-2.13c.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.7 5.7 0 00-1.38-2.13A5.7 5.7 0 0019.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1018.16 12 6.16 6.16 0 0012 5.84zm0 10.16A4 4 0 1116 12a4 4 0 01-4 4zm6.41-10.85a1.44 1.44 0 11-1.44-1.44 1.44 1.44 0 011.44 1.44z"/></svg>',
+    facebook: '<svg viewBox="0 0 24 24"><path d="M24 12a12 12 0 10-13.88 11.85v-8.38H7.08V12h3.04V9.36c0-3 1.79-4.66 4.53-4.66 1.31 0 2.68.23 2.68.23v2.95h-1.51c-1.49 0-1.96.93-1.96 1.87V12h3.33l-.53 3.47h-2.8v8.38A12 12 0 0024 12z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.87 11.87 0 01-1.587-5.946C.16 5.335 5.494 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.728-.979zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>',
+    tiktok: '<svg viewBox="0 0 24 24"><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>',
+    youtube: '<svg viewBox="0 0 24 24"><path d="M23.5 6.2a3.02 3.02 0 00-2.12-2.14C19.5 3.55 12 3.55 12 3.55s-7.5 0-9.38.51A3.02 3.02 0 00.5 6.2C0 8.08 0 12 0 12s0 3.92.5 5.8a3.02 3.02 0 002.12 2.14c1.88.51 9.38.51 9.38.51s7.5 0 9.38-.51a3.02 3.02 0 002.12-2.14C24 15.92 24 12 24 12s0-3.92-.5-5.8zM9.6 15.6V8.4l6.27 3.6-6.27 3.6z"/></svg>',
+    linkedin: '<svg viewBox="0 0 24 24"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.35V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.07 2.07 0 110-4.14 2.07 2.07 0 010 4.14zM7.12 20.45H3.55V9h3.57v11.45zM22.22 0H1.77C.8 0 0 .78 0 1.75v20.5C0 23.22.8 24 1.77 24h20.45c.98 0 1.78-.78 1.78-1.75V1.75C24 .78 23.2 0 22.22 0z"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.4l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93zm-1.29 19.5h2.04L6.49 3.24H4.3z"/></svg>',
+    website: '<svg viewBox="0 0 24 24"><path d="M12 0a12 12 0 100 24 12 12 0 000-24zm7.93 7h-3.2a15.6 15.6 0 00-1.34-3.46A8.03 8.03 0 0119.93 7zM12 2.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM2.26 14a7.9 7.9 0 010-4h3.67a16.5 16.5 0 000 4H2.26zm.81 2h3.2c.34 1.23.8 2.4 1.34 3.46A8.03 8.03 0 013.07 16zm3.2-9H3.07a8.03 8.03 0 014.54-3.46A15.6 15.6 0 006.27 7zM12 21.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 16H9.66a14.4 14.4 0 010-4h4.68a14.4 14.4 0 010 4zm.32 3.46c.54-1.06 1-2.23 1.34-3.46h3.2a8.03 8.03 0 01-4.54 3.46zM18.07 14a16.5 16.5 0 000-4h3.67a7.9 7.9 0 010 4h-3.67z"/></svg>',
+  };
+  const SOCIAL_LABELS: Record<string, string> = {
+    instagram: "Instagram", facebook: "Facebook", whatsapp: "WhatsApp", tiktok: "TikTok",
+    youtube: "YouTube", linkedin: "LinkedIn", x: "X", website: "Sitio web",
+  };
+  const socialLinks = (d.socialLinks || []).filter((s: any) => s.url);
+  const socialHTML = socialLinks.length
+    ? `<section id="redes" class="section social">
+        <div class="wrap">
+          <p class="eyebrow reveal">Seguinos</p>
+          <h2 class="reveal">${esc(d.socialTitle || "Conectá con nosotros")}</h2>
+          <div class="social-row reveal" style="transition-delay:80ms">
+            ${socialLinks.map((s: any) => {
+              const label = SOCIAL_LABELS[s.type] || "Enlace";
+              const icon = SOCIAL_ICONS[s.type] || SOCIAL_ICONS.website;
+              return `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="${esc(label)}">${icon}<span>${esc(label)}</span></a>`;
+            }).join("")}
+          </div>
+        </div>
+      </section>`
+    : "";
 
   const css = `
   :root{
@@ -305,6 +368,31 @@ export function generateHTML(d: Record<string, any>) {
   .reveal.in{opacity:1;transform:none}
   @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}
     .hero-bg{transform:none!important}.stmt{background-attachment:scroll}}
+
+  /* reviews */
+  .reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:6px}
+  .review{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:26px}
+  .review-text{color:var(--text);margin:12px 0 16px;font-size:1rem}
+  .review-author{color:var(--muted);font-size:.86rem;font-weight:600}
+  .stars{display:inline-flex;gap:3px;font-size:1.18rem;line-height:1}
+  .stars .star{color:#d9d9e0}
+  .stars .star.on{color:#FFC107;animation:twinkle 1.8s ease-in-out infinite}
+  @keyframes twinkle{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(255,193,7,0))}
+    50%{transform:scale(1.22);filter:drop-shadow(0 0 6px rgba(255,193,7,.75))}}
+  .stars--inline{font-size:1rem;margin-right:6px}
+  .stars--inline .star.on{color:#fff}
+  .review-cta{text-align:center;margin-top:40px}
+  .btn--review{display:inline-flex;align-items:center;gap:8px}
+
+  /* social */
+  .social-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px}
+  .social-btn{display:inline-flex;align-items:center;gap:10px;padding:13px 22px;border-radius:999px;
+    background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:.92rem;
+    box-shadow:0 6px 18px rgba(0,0,0,.14);transition:transform .2s ease,box-shadow .2s ease}
+  .social-btn:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(0,0,0,.2)}
+  .social-btn svg{width:18px;height:18px;fill:currentColor}
+  @media(max-width:820px){.reviews-grid{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){.stars .star.on{animation:none}}
   `;
 
   const js =
@@ -358,7 +446,7 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
   <nav class="nav-links">${navLinks}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">Cotizar</a>` : ""}</nav>
 </header>
 
-<section class="hero">
+<section id="inicio" class="hero">
   <div class="hero-bg" style="background-image:url('${esc(imgUrl(d.heroImage))}')"></div>
   <div class="hero-overlay"></div>
   ${attributionHTML(d.heroImage, "attribution--hero")}
@@ -389,6 +477,8 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
 ${stmtHTML}
 ${servicesHTML}
 ${galleryHTML}
+${reviewsHTML}
+${socialHTML}
 
 <section id="contacto" class="cta">
   <div class="wrap">
