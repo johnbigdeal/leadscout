@@ -233,8 +233,8 @@ const BUILDER_CSS = `
 .px-switch.on i{left:21px}
 
 /* preview */
-.px-stage{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 0%,#1a1922,#0e0d12);padding:26px;overflow:hidden}
+.px-stage{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  background:radial-gradient(circle at 50% 0%,#1a1922,#0e0d12);padding:26px;overflow:auto}
 .px-frame{background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden;
   box-shadow:0 40px 90px rgba(0,0,0,.5);transition:width .4s,height .4s;position:relative}
 .px-frame iframe{width:100%;height:100%;border:none;display:block;background:#fff}
