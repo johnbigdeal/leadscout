@@ -19,6 +19,7 @@ export default function SearchPage() {
   const [searching, setSearching] = useState(false);
   const [plan, setPlan] = useState<string>("free");
   const [searchesRemaining, setSearchesRemaining] = useState<number | null>(null);
+  const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [trialExpired, setTrialExpired] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -35,7 +36,10 @@ export default function SearchPage() {
       setPlan(data.currentPlan || "free");
       setTrialExpired(data.trialExpired || false);
       const freePlan = data.plans.find((p: any) => p.id === "free");
-      if (freePlan) setSearchesRemaining(freePlan.searchesRemaining ?? null);
+      if (freePlan) {
+        setSearchesRemaining(freePlan.searchesRemaining ?? null);
+        setCreditsRemaining(freePlan.creditsRemaining ?? 0);
+      }
     }
   }
 
@@ -140,17 +144,31 @@ export default function SearchPage() {
             <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
               <div className="flex items-center gap-2 text-sm text-blue-700">
                 <FreeBadge>Free</FreeBadge>
-                <span>{searchesRemaining} búsquedas restantes hoy</span>
+                <span>
+                  {searchesRemaining} búsquedas restantes hoy
+                  {creditsRemaining > 0 && (
+                    <span className="text-blue-500"> ({creditsRemaining} de referidos)</span>
+                  )}
+                </span>
               </div>
-              {searchesRemaining === 0 && (
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowUpgradeModal(true)}
+                  onClick={() => router.push("/dashboard/referrals")}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline"
                 >
-                  Upgrade a Pro
+                  Referí y ganá búsquedas
                 </button>
-              )}
+                {searchesRemaining === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Upgrade a Pro
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {searchError && (

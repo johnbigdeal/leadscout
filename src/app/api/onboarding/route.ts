@@ -3,6 +3,8 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { organizations, memberships, subscriptions, pipelines, profiles } from "@/lib/db/schema";
 import { rateLimit } from "@/lib/rate-limit";
+import { generateUniqueReferralCode } from "@/lib/referrals";
+import { eq } from "drizzle-orm";
 
 export async function POST(request: Request) {
   // Rate limit by IP - 5 requests per minute
@@ -15,7 +17,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { userId, orgName } = await request.json();
+  const { userId, orgName, referralCode } = await request.json();
   if (!userId || !orgName) {
     return NextResponse.json({ error: "Missing userId or orgName" }, { status: 400 });
   }
@@ -28,6 +30,19 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = user.email === "johnbigdeal@gmail.com";
 
+  /* Resolve referrer from the referral code (must exist and not be self). */
+  let referredBy: string | null = null;
+  if (referralCode && typeof referralCode === "string") {
+    const [referrer] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.referralCode, referralCode.trim().toUpperCase()))
+      .limit(1);
+    if (referrer && referrer.id !== userId) referredBy = referrer.id;
+  }
+
+  const newReferralCode = await generateUniqueReferralCode();
+
   const [org] = await db
     .insert(organizations)
     .values({ name: orgName })
@@ -37,6 +52,8 @@ export async function POST(request: Request) {
     id: userId,
     email: user.email!,
     role: isSuperAdmin ? "super_admin" : "user",
+    referralCode: newReferralCode,
+    referredBy,
   }).onConflictDoNothing();
 
   await db.insert(memberships).values({

@@ -99,7 +99,9 @@ interface AdminSearch {
 }
 
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials" | "searches">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials" | "searches" | "referrals">("overview");
+  const [referrals, setReferrals] = useState<{ referrerEmail: string; referredEmail: string; referredAt: string }[]>([]);
+  const [topReferrers, setTopReferrers] = useState<{ email: string; count: number }[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
@@ -192,6 +194,16 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function fetchReferrals() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/referrals", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setReferrals(data.referrals || []);
+      setTopReferrers(data.topReferrers || []);
+    }
+  }
+
   async function handleDeleteSearch(searchId: string) {
     if (!confirm("¿Eliminar esta búsqueda? Se borrarán también sus resultados.")) return;
     const headers = await getAuthHeaders();
@@ -259,7 +271,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials(), fetchSearches()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -304,6 +316,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "subscriptions"} onClick={() => setTab("subscriptions")} label={`Suscripciones (${subscriptions.length})`} />
         <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
         <TabButton active={tab === "searches"} onClick={() => setTab("searches")} label={`Búsquedas (${searches.length})`} />
+        <TabButton active={tab === "referrals"} onClick={() => setTab("referrals")} label={`Referidos (${referrals.length})`} />
       </div>
 
       {/* Overview Tab */}
@@ -778,6 +791,52 @@ export default function AdminDashboardPage() {
                       No hay búsquedas registradas.
                     </td>
                   </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === "referrals" && (
+        <div className="space-y-6">
+          {topReferrers.length > 0 && (
+            <div>
+              <h2 className="mb-3 text-lg font-semibold">Top referidores</h2>
+              <div className="flex flex-wrap gap-2">
+                {topReferrers.map((r) => (
+                  <div key={r.email} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm">
+                    <span className="font-medium">{r.email}</span>
+                    <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="pb-3 pl-4">Referidor</th>
+                  <th className="pb-3">Referido</th>
+                  <th className="pb-3 pr-4">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {referrals.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-sm text-zinc-500">
+                      Todavía no hay referidos
+                    </td>
+                  </tr>
+                ) : (
+                  referrals.map((r, i) => (
+                    <tr key={i} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="py-3 pl-4 font-medium">{r.referrerEmail}</td>
+                      <td className="py-3">{r.referredEmail}</td>
+                      <td className="py-3 pr-4 text-zinc-500">{new Date(r.referredAt).toLocaleDateString("es")}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

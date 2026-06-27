@@ -16,6 +16,9 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
   email: text("email").notNull(),
   role: text("role").notNull().default("user"),
+  referralCode: text("referral_code").unique(),
+  referredBy: uuid("referred_by"),
+  creditsUsed: integer("credits_used").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });

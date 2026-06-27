@@ -19,6 +19,7 @@ import {
   Crown,
   Zap,
   Menu,
+  Gift,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
@@ -137,6 +138,7 @@ export default function DashboardClient({
           <NavItem href="/dashboard/crm" icon={<LayoutDashboard className="h-4 w-4" />} label={t("crm")} collapsed={isCollapsed} onNavigate={closeOnNav} />
           <NavItem href="/dashboard/sales" icon={<DollarSign className="h-4 w-4" />} label={t("sales")} collapsed={isCollapsed} onNavigate={closeOnNav} />
           <NavItem href="/dashboard/websites" icon={<Globe className="h-4 w-4" />} label="Websites" collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/referrals" icon={<Gift className="h-4 w-4" />} label="Referidos" collapsed={isCollapsed} onNavigate={closeOnNav} />
           {isSuperAdmin && (
             <NavItem href="/dashboard/admin" icon={<Shield className="h-4 w-4" />} label="Admin" collapsed={isCollapsed} onNavigate={closeOnNav} />
           )}
