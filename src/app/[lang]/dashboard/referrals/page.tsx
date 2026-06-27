@@ -21,7 +21,7 @@ type ReferralData = {
   creditsEarned: number;
   creditsUsed: number;
   creditsRemaining: number;
-  referred: { email: string; createdAt: string }[];
+  referred: { email: string; createdAt: string; approved: boolean }[];
 };
 
 export default function ReferralsPage() {
@@ -97,7 +97,7 @@ export default function ReferralsPage() {
           </Button>
         </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Compartí este link. Cuando alguien se registra con él, ganás un crédito.
+          Compartí este link. Ganás el crédito cuando la cuenta de tu referido es aprobada (o ingresa por primera vez).
         </p>
       </div>
 
@@ -131,7 +131,14 @@ export default function ReferralsPage() {
           <div className="divide-y divide-zinc-100">
             {data!.referred.map((r, i) => (
               <div key={i} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="text-zinc-800">{r.email}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-800">{r.email}</span>
+                  {r.approved ? (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">Aprobado</span>
+                  ) : (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Pendiente</span>
+                  )}
+                </div>
                 <span className="text-xs text-zinc-400">{new Date(r.createdAt).toLocaleDateString("es")}</span>
               </div>
             ))}
