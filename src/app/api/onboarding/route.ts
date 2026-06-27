@@ -60,7 +60,8 @@ export async function POST(request: Request) {
     orgId: org.id,
     userId,
     role: isSuperAdmin ? "superadmin" : "owner",
-    approved: isSuperAdmin,
+    /* Self-serve: las cuentas nuevas entran directo (sin aprobación manual). */
+    approved: true,
   });
 
   const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -79,5 +80,5 @@ export async function POST(request: Request) {
     stages: ["new", "contacted", "qualified", "won", "lost"],
   });
 
-  return NextResponse.json({ orgId: org.id, approved: isSuperAdmin });
+  return NextResponse.json({ orgId: org.id, approved: true });
 }
