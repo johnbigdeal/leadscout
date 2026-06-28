@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { leads, memberships, businesses, opportunityScores, pipelines, leadCategories } from "@/lib/db/schema";
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, or } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       .select({ id: pipelines.id })
       .from(pipelines)
       .where(eq(pipelines.orgId, ctx.orgId))
+      .orderBy(pipelines.createdAt)
       .limit(1);
     targetPipelineId = defaultPipeline?.id ?? null;
   }
@@ -50,7 +51,9 @@ export async function GET(request: Request) {
 
   const conditions = [eq(leads.orgId, ctx.orgId)];
   if (pipelineId) {
-    conditions.push(eq(leads.pipelineId, pipelineId));
+    /* Incluir leads sin pipeline (pipelineId NULL) para que nunca desaparezcan
+       del tablero al filtrar por un pipeline. */
+    conditions.push(or(eq(leads.pipelineId, pipelineId), isNull(leads.pipelineId))!);
   }
   const whereClause = and(...conditions);
 
