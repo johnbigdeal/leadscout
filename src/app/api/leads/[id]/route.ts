@@ -68,7 +68,8 @@ export async function PATCH(
 
   const body = await request.json();
 
-  if (body.tags && !(await canAddTags(ctx.orgId, body.tags))) {
+  /* Solo el plan free está limitado; pro y super admin son ilimitados. */
+  if (body.tags && !ctx.isSuperAdmin && !(await canAddTags(ctx.orgId, body.tags))) {
     return NextResponse.json(
       { error: "Límite de etiquetas por lead alcanzado (3). Upgrade a Pro para ilimitadas." },
       { status: 403 },
