@@ -11,7 +11,13 @@ export async function GET(request: Request) {
   const result = await requireAuth(request);
   if (result.response) return result.response;
   const ctx = result.ctx;
-  const rows = await db.select().from(pipelines).where(eq(pipelines.orgId, ctx.orgId));
+  /* Orden estable (más antiguo primero) para que el pipeline activo por defecto
+     del CRM (data[0]) no cambie entre refrescos. */
+  const rows = await db
+    .select()
+    .from(pipelines)
+    .where(eq(pipelines.orgId, ctx.orgId))
+    .orderBy(pipelines.createdAt);
   return NextResponse.json(rows);
 }
 
