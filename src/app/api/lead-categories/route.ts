@@ -21,7 +21,8 @@ export async function POST(request: Request) {
   const ctx = result.ctx;
   const { name, color } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
-  if (!(await canCreateCategory(ctx.orgId))) {
+  /* Solo el plan free está limitado; pro y super admin son ilimitados. */
+  if (!ctx.isSuperAdmin && !(await canCreateCategory(ctx.orgId))) {
     return NextResponse.json(
       { error: "Límite de categorías alcanzado. Upgrade a Pro para ilimitadas." },
       { status: 403 },

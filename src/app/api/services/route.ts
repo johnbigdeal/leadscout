@@ -25,7 +25,8 @@ export async function POST(request: Request) {
   const ctx = result.ctx;
   const { name, defaultCost, currency, recurrence } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
-  if (!(await canCreateService(ctx.orgId))) {
+  /* Solo el plan free está limitado; pro y super admin son ilimitados. */
+  if (!ctx.isSuperAdmin && !(await canCreateService(ctx.orgId))) {
     return NextResponse.json(
       { error: "Límite de servicios alcanzado. Upgrade a Pro para ilimitados." },
       { status: 403 },
