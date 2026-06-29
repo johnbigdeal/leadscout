@@ -5,6 +5,17 @@ import {
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+
+/* Header Authorization para las rutas /api/* protegidas con requireAuth. */
+async function authHeaders() {
+  try {
+    const { data: { session } } = await createClient().auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 /* =========================================================================
    PARALUX — Parallax landing builder
@@ -138,7 +149,7 @@ const DEFAULT = {
   contactCtaText: "Escribir por WhatsApp",
   whatsappEnabled: true,
   whatsappNumber: "521234567890",
-  whatsappMessage: "Hola Estudio Lumen, vi su sitio y me gustaría una cotización.",
+  whatsappMessage: "Hola Estudio Lumen, vi su sitio y me gustaría comprar.",
   whatsappPosition: "right",
   whatsappSize: "normal",
   email: "hola@estudiolumen.com",
@@ -782,7 +793,7 @@ function ImageField({ label, value, onChange, hint }) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/upload", { method: "POST", headers: { ...(await authHeaders()) }, body: formData });
       if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
       const { url: uploadedUrl } = await res.json();
       updateUrl(uploadedUrl);
@@ -863,7 +874,7 @@ function AIModal({ d, setD, onClose }) {
 
       const res = await fetch("/api/generate-copy", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           name: brief.name,
           what: brief.what,
@@ -871,7 +882,10 @@ function AIModal({ d, setD, onClose }) {
           language: brief.lang,
         }),
       });
-      if (!res.ok) throw new Error("AI request failed");
+      if (!res.ok) {
+        const msg = await res.json().then((b) => b?.error).catch(() => null);
+        throw new Error(msg || "No se pudo generar. Revisa tu conexión e inténtalo de nuevo.");
+      }
       const parsed = await res.json();
 
       setD((o) => ({
@@ -894,11 +908,11 @@ function AIModal({ d, setD, onClose }) {
         ctaTitle: parsed.ctaTitle ?? o.ctaTitle,
         ctaSubtext: parsed.ctaSubtext ?? o.ctaSubtext,
         contactCtaText: parsed.contactCtaText ?? o.contactCtaText,
-        whatsappMessage: parsed.whatsappMessage ?? o.whatsappMessage,
+        /* whatsappMessage NO se toca: se respeta el mensaje precargado del lead. */
       }));
       onClose();
     } catch (e) {
-      setError("No se pudo generar. Revisa tu conexión e inténtalo de nuevo.");
+      setError(e?.message || "No se pudo generar. Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }

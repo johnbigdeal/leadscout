@@ -149,6 +149,10 @@ export async function POST(request: Request) {
           : "Somos un equipo apasionado por lo que hacemos. Cada proyecto es una oportunidad de crear algo extraordinario.",
         ctaText: "Contactar",
         phone: biz.phone || "",
+        /* WhatsApp del sitio = teléfono real del lead (no el placeholder del DEFAULT). */
+        whatsappEnabled: !!biz.phone,
+        whatsappNumber: biz.phone ? biz.phone.replace(/\D/g, "") : "",
+        whatsappMessage: `Hola ${biz.name || ""}, vi su sitio y me gustaría comprar.`,
         email: biz.email || "",
         location: biz.address || "",
         instagram,
