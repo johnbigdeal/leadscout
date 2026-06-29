@@ -560,7 +560,13 @@ export default function ResultsPage() {
                             {biz.phone ? (
                               <span className="flex items-center gap-1 text-sm text-foreground/80">
                                 <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                <span className="truncate max-w-[120px]">{biz.phone}</span>
+                                <a
+                                  href={`tel:${biz.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="truncate max-w-[120px] hover:text-foreground hover:underline"
+                                >
+                                  {biz.phone}
+                                </a>
                                 {biz.isWhatsapp && <MessageCircle className="h-3 w-3 shrink-0 text-emerald-500" />}
                               </span>
                             ) : <span className="text-zinc-300">—</span>}

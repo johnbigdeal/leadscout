@@ -12,17 +12,18 @@ export async function POST(request: Request) {
   if (result.response) return result.response;
   const ctx = result.ctx;
 
-  const { name, what, tone } = await request.json();
+  const { name, what, tone, language } = await request.json();
   if (!name || !what) {
     return NextResponse.json({ error: "name and what are required" }, { status: 400 });
   }
+  const lang = language === "en" ? "en" : "es";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
   }
 
-  const prompt =
+  const promptEs =
     "Eres un copywriter experto en landing pages minimalistas y profesionales en español. " +
     "Devuelve EXCLUSIVAMENTE un objeto JSON válido, sin markdown, sin explicaciones, sin ```.\n\n" +
     `Negocio: ${name}\n` +
@@ -47,6 +48,34 @@ export async function POST(request: Request) {
     '  "contactCtaText": "texto del botón final, 2-4 palabras",\n' +
     '  "whatsappMessage": "mensaje que el cliente enviaría por WhatsApp"\n' +
     "}";
+
+  const promptEn =
+    "You are an expert copywriter for minimalist, professional landing pages in English. " +
+    "Return EXCLUSIVELY a valid JSON object, no markdown, no explanations, no ```.\n\n" +
+    `Business: ${name}\n` +
+    `What it does: ${what}\n` +
+    `Tone: ${tone || "Professional and warm"}\n\n` +
+    "Generate ALL the site content. The JSON must have exactly these keys (strings in English, short and elegant):\n" +
+    "{\n" +
+    '  "tagline": "short category, 2-4 words",\n' +
+    '  "heroHeadline": "powerful headline, max 7 words",\n' +
+    '  "heroSubtext": "1 sentence, max 22 words",\n' +
+    '  "ctaText": "button text, 2-4 words",\n' +
+    '  "aboutTitle": "about-section title, max 4 words",\n' +
+    '  "aboutText": "2-3 sentences about the business value",\n' +
+    '  "stmtText": "a memorable quote/statement, max 14 words",\n' +
+    '  "servicesTitle": "services-section title, max 4 words",\n' +
+    '  "services": [ {"title":"...","desc":"1 sentence"}, {"title":"...","desc":"1 sentence"}, {"title":"...","desc":"1 sentence"}, {"title":"...","desc":"1 sentence"} ],\n' +
+    '  "galleryTitle": "gallery/projects-section title, max 4 words",\n' +
+    '  "googleReviewsTitle": "reviews-section title, max 6 words",\n' +
+    '  "socialTitle": "social-media-section title, max 5 words",\n' +
+    '  "ctaTitle": "invitation to get in touch, max 6 words",\n' +
+    '  "ctaSubtext": "1 friendly closing sentence",\n' +
+    '  "contactCtaText": "final button text, 2-4 words",\n' +
+    '  "whatsappMessage": "message the customer would send on WhatsApp"\n' +
+    "}";
+
+  const prompt = lang === "en" ? promptEn : promptEs;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {

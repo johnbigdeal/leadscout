@@ -525,6 +525,19 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                   </div>
 
                   <div className="px-field">
+                    <span className="px-label">Idioma del sitio</span>
+                    <select
+                      className="px-input"
+                      value={d.lang === "en" ? "en" : "es"}
+                      onChange={(e) => set("lang", e.target.value)}
+                    >
+                      <option value="es">Español</option>
+                      <option value="en">English</option>
+                    </select>
+                    <p className="px-hint">Cambia los textos fijos de la plantilla (menú, secciones, botones). El contenido lo redacta la IA en el idioma elegido.</p>
+                  </div>
+
+                  <div className="px-field">
                     <span className="px-label">Modo oscuro de la página</span>
                     <div className="px-toggle">
                       <span style={{ fontSize: ".88rem" }}>{d.dark ? "Activado" : "Desactivado"}</span>
@@ -813,6 +826,7 @@ function AIModal({ d, setD, onClose }) {
     name: d.businessName || "",
     what: "",
     tone: "Profesional y cálido",
+    lang: d.lang === "en" ? "en" : "es",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -854,6 +868,7 @@ function AIModal({ d, setD, onClose }) {
           name: brief.name,
           what: brief.what,
           tone: brief.tone,
+          language: brief.lang,
         }),
       });
       if (!res.ok) throw new Error("AI request failed");
@@ -861,6 +876,7 @@ function AIModal({ d, setD, onClose }) {
 
       setD((o) => ({
         ...o,
+        lang: brief.lang,
         businessName: brief.name,
         logoText: (brief.name || o.logoText).toUpperCase().slice(0, 16),
         tagline: parsed.tagline ?? o.tagline,
@@ -905,6 +921,18 @@ function AIModal({ d, setD, onClose }) {
           <Field label="¿Qué hace? (1-2 frases)" v={brief.what} on={(v) => setBrief({ ...brief, what: v })} area
             ph="Estudio de arquitectura e interiorismo enfocado en espacios cálidos y minimalistas." />
           <Field label="Tono / personalidad" v={brief.tone} on={(v) => setBrief({ ...brief, tone: v })} ph="Profesional y cálido" />
+
+          <div className="px-field">
+            <span className="px-label">Idioma del sitio</span>
+            <select
+              className="px-input"
+              value={brief.lang}
+              onChange={(e) => setBrief({ ...brief, lang: e.target.value })}
+            >
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </div>
 
           {error && <p style={{ color: "#ff7a7a", fontSize: ".84rem", marginBottom: 12 }}>{error}</p>}
 

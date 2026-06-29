@@ -63,6 +63,51 @@ const waLink = (num: string, msg: string) => {
   return n ? `https://wa.me/${n}${t ? `?text=${t}` : ""}` : "#";
 };
 
+const telLink = (num: string) => {
+  const n = onlyDigits(num);
+  return n ? `tel:${n}` : "#";
+};
+
+/* ---------- fixed UI strings (i18n) ---------- */
+const STRINGS = {
+  es: {
+    htmlLang: "es",
+    navInicio: "Inicio", navNosotros: "Nosotros", navServicios: "Servicios",
+    navProyectos: "Proyectos", navContacto: "Contacto",
+    navCta: "Cotizar",
+    ebQuienes: "Quiénes somos", ebHacemos: "Lo que hacemos",
+    ebTrabajo: "Trabajo seleccionado", ebResenas: "Reseñas en Google", ebSeguinos: "Seguinos",
+    ebEmpezamos: "¿Empezamos?",
+    servicios: "Servicios", proyectos: "Proyectos", projectAlt: "Proyecto",
+    reviewsTitleFallback: "Lo que dicen nuestros clientes",
+    reviewsCta: "Dejá tu reseña en Google",
+    socialTitleFallback: "Conectá con nosotros",
+    websiteLabel: "Sitio web", socialLinkFallback: "Enlace",
+    heroCtaWa: "Hablar por WhatsApp", contactCtaWa: "Escribir por WhatsApp",
+    ctaTitleFallback: "Cuéntanos sobre tu proyecto",
+    ctaSubtextFallback: "Respondemos rápido. Escríbenos y agendemos una conversación.",
+    contactoFallback: "Contáctanos", enviarCorreo: "Enviar correo",
+  },
+  en: {
+    htmlLang: "en",
+    navInicio: "Home", navNosotros: "About", navServicios: "Services",
+    navProyectos: "Projects", navContacto: "Contact",
+    navCta: "Get a quote",
+    ebQuienes: "About us", ebHacemos: "What we do",
+    ebTrabajo: "Selected work", ebResenas: "Google reviews", ebSeguinos: "Follow us",
+    ebEmpezamos: "Let's start",
+    servicios: "Services", proyectos: "Projects", projectAlt: "Project",
+    reviewsTitleFallback: "What our clients say",
+    reviewsCta: "Leave your review on Google",
+    socialTitleFallback: "Connect with us",
+    websiteLabel: "Website", socialLinkFallback: "Link",
+    heroCtaWa: "Chat on WhatsApp", contactCtaWa: "Message on WhatsApp",
+    ctaTitleFallback: "Tell us about your project",
+    ctaSubtextFallback: "We reply fast. Send us a message and let's talk.",
+    contactoFallback: "Contact us", enviarCorreo: "Send email",
+  },
+} as const;
+
 /* ---------- style presets ---------- */
 const PRESETS = {
   modern: {
@@ -149,10 +194,17 @@ export function generateHTML(
   /* "Hecho con LeadScout" badge. Shown by default; the serving route forces it
      on for Free plans and lets Pro users hide it via data.hideBadge. */
   const showBadge = opts.showBadge !== false;
+  const lang: "es" | "en" = d.lang === "en" ? "en" : "es";
+  const S = STRINGS[lang];
   const p = PRESETS[(d.preset as keyof typeof PRESETS) || "modern"];
   const c = d.dark ? p.dark : p.light;
   const wa = waLink(d.whatsappNumber || "", d.whatsappMessage || "");
   const hasWA = d.whatsappEnabled !== false && onlyDigits(d.whatsappNumber || "").length > 0;
+  /* Prominent header phone: opens WhatsApp when configured, falls back to a call. */
+  const phoneHref = hasWA ? wa : telLink(d.phone || "");
+  const phoneHTML = d.phone
+    ? `<a class="nav-phone" href="${phoneHref}"${hasWA ? ' target="_blank" rel="noopener"' : ""}><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .58 3.6 1 1 0 0 1-.24 1z"/></svg><span>${esc(d.phone)}</span></a>`
+    : "";
   const waPosition = d.whatsappPosition || "right";
   const waSize = d.whatsappSize || "normal";
 
@@ -166,11 +218,11 @@ export function generateHTML(
   const ogImage = esc(imgUrl(d.heroImage) || imgUrl(d.aboutImage));
 
   const navLinks = [
-    '<a href="#inicio">Inicio</a>',
-    '<a href="#nosotros">Nosotros</a>',
-    services.length ? '<a href="#servicios">Servicios</a>' : "",
-    gallery.length ? '<a href="#galeria">Proyectos</a>' : "",
-    '<a href="#contacto">Contacto</a>',
+    `<a href="#inicio">${S.navInicio}</a>`,
+    `<a href="#nosotros">${S.navNosotros}</a>`,
+    services.length ? `<a href="#servicios">${S.navServicios}</a>` : "",
+    gallery.length ? `<a href="#galeria">${S.navProyectos}</a>` : "",
+    `<a href="#contacto">${S.navContacto}</a>`,
   ]
     .filter(Boolean)
     .join("");
@@ -178,8 +230,8 @@ export function generateHTML(
   const servicesHTML = services.length
     ? `<section id="servicios" class="section">
         <div class="wrap">
-          <p class="eyebrow reveal">Lo que hacemos</p>
-          <h2 class="reveal">${esc(d.servicesTitle || "Servicios")}</h2>
+          <p class="eyebrow reveal">${S.ebHacemos}</p>
+          <h2 class="reveal">${esc(d.servicesTitle || S.servicios)}</h2>
           <div class="grid">
             ${services
               .map(
@@ -199,15 +251,15 @@ export function generateHTML(
   const galleryHTML = gallery.length
     ? `<section id="galeria" class="section section--tight">
         <div class="wrap">
-          <p class="eyebrow reveal">Trabajo seleccionado</p>
-          <h2 class="reveal">${esc(d.galleryTitle || "Proyectos")}</h2>
+          <p class="eyebrow reveal">${S.ebTrabajo}</p>
+          <h2 class="reveal">${esc(d.galleryTitle || S.proyectos)}</h2>
         </div>
         <div class="gallery">
           ${gallery
             .map(
               (img: any, i: number) => `
             <figure class="g-item reveal" style="transition-delay:${(i % 3) * 90}ms">
-              <img src="${esc(imgUrl(img))}" alt="Proyecto ${i + 1}" loading="lazy"/>
+              <img src="${esc(imgUrl(img))}" alt="${S.projectAlt} ${i + 1}" loading="lazy"/>
               ${attributionHTML(img, "attribution--gallery")}
             </figure>`,
             )
@@ -246,8 +298,8 @@ export function generateHTML(
   const reviewsHTML = reviews.length || d.googleReviewUrl
     ? `<section id="resenas" class="section reviews">
         <div class="wrap">
-          <p class="eyebrow reveal">Reseñas en Google</p>
-          <h2 class="reveal">${esc(d.googleReviewsTitle || "Lo que dicen nuestros clientes")}</h2>
+          <p class="eyebrow reveal">${S.ebResenas}</p>
+          <h2 class="reveal">${esc(d.googleReviewsTitle || S.reviewsTitleFallback)}</h2>
           ${reviews.length ? `<div class="reviews-grid">
             ${reviews.map((r: any, i: number) => `
             <article class="review reveal" style="transition-delay:${(i % 3) * 90}ms">
@@ -257,7 +309,7 @@ export function generateHTML(
             </article>`).join("")}
           </div>` : ""}
           ${d.googleReviewUrl ? `<div class="reveal review-cta" style="transition-delay:120ms">
-            <a class="btn btn--review" href="${esc(d.googleReviewUrl)}" target="_blank" rel="noopener">${starRow(5, true)} Dejá tu reseña en Google →</a>
+            <a class="btn btn--review" href="${esc(d.googleReviewUrl)}" target="_blank" rel="noopener">${starRow(5, true)} ${S.reviewsCta} →</a>
           </div>` : ""}
         </div>
       </section>`
@@ -276,17 +328,17 @@ export function generateHTML(
   };
   const SOCIAL_LABELS: Record<string, string> = {
     instagram: "Instagram", facebook: "Facebook", whatsapp: "WhatsApp", tiktok: "TikTok",
-    youtube: "YouTube", linkedin: "LinkedIn", x: "X", website: "Sitio web",
+    youtube: "YouTube", linkedin: "LinkedIn", x: "X", website: S.websiteLabel,
   };
   const socialLinks = (d.socialLinks || []).filter((s: any) => s.url);
   const socialHTML = socialLinks.length
     ? `<section id="redes" class="section social">
         <div class="wrap">
-          <p class="eyebrow reveal">Seguinos</p>
-          <h2 class="reveal">${esc(d.socialTitle || "Conectá con nosotros")}</h2>
+          <p class="eyebrow reveal">${S.ebSeguinos}</p>
+          <h2 class="reveal">${esc(d.socialTitle || S.socialTitleFallback)}</h2>
           <div class="social-row reveal" style="transition-delay:80ms">
             ${socialLinks.map((s: any) => {
-              const label = SOCIAL_LABELS[s.type] || "Enlace";
+              const label = SOCIAL_LABELS[s.type] || S.socialLinkFallback;
               const icon = SOCIAL_ICONS[s.type] || SOCIAL_ICONS.website;
               return `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="${esc(label)}">${icon}<span>${esc(label)}</span></a>`;
             }).join("")}
@@ -326,6 +378,10 @@ export function generateHTML(
   .nav-links a:hover{color:#fff}.nav.scrolled .nav-links a:hover{color:var(--accent)}
   .nav-cta{padding:9px 18px;border:1px solid rgba(255,255,255,.4);border-radius:100px;color:#fff;font-size:.82rem}
   .nav.scrolled .nav-cta{border-color:var(--accent);color:var(--accent)}
+  .nav-actions{display:flex;align-items:center;gap:18px}
+  .nav-phone{display:inline-flex;align-items:center;gap:7px;color:#fff;font-weight:700;font-size:.92rem;white-space:nowrap}
+  .nav-phone svg{opacity:.9;flex:none}
+  .nav.scrolled .nav-phone{color:var(--accent)}
   @media(max-width:760px){.nav-links{display:none}}
 
   /* hero */
@@ -393,6 +449,7 @@ export function generateHTML(
   .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:28px;align-items:flex-end}
   .foot-brand{font-family:'${p.display}',serif;font-weight:700;font-size:1.3rem}
   .foot small{display:block;color:var(--muted);margin-top:8px;font-size:.86rem}
+  .foot small a{color:inherit;text-decoration:none}.foot small a:hover{color:var(--accent);text-decoration:underline}
   .foot-links{display:flex;gap:22px;flex-wrap:wrap}
   .foot-links a{color:var(--muted);font-size:.88rem;transition:.2s}.foot-links a:hover{color:var(--accent)}
   .footer-attribution{width:100%;margin-top:22px;font-size:.78rem;color:var(--muted)}
@@ -486,7 +543,7 @@ export function generateHTML(
     '<svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.494 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.728-.979zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>';
 
   return `<!doctype html>
-<html lang="es">
+<html lang="${S.htmlLang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -508,7 +565,7 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
 <body>
 <header class="nav">
   <span class="brand">${esc(d.logoText || d.businessName || "MARCA")}</span>
-  <nav class="nav-links">${navLinks}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">Cotizar</a>` : ""}</nav>
+  <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
 </header>
 
 <section id="inicio" class="hero">
@@ -520,7 +577,7 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
     <h1 class="reveal" style="transition-delay:80ms">${esc(d.heroHeadline || "")}</h1>
     <p class="lede reveal" style="transition-delay:160ms">${esc(d.heroSubtext || "")}</p>
     <div class="reveal" style="transition-delay:240ms">
-      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.ctaText || "Hablar por WhatsApp")} →</a>` : `<a class="btn" href="#contacto">${esc(d.ctaText || "Contáctanos")} →</a>`}
+      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.ctaText || S.heroCtaWa)} →</a>` : `<a class="btn" href="#contacto">${esc(d.ctaText || S.contactoFallback)} →</a>`}
     </div>
   </div>
   <div class="scroll-cue"></div>
@@ -530,11 +587,11 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
   <div class="wrap">
     <div class="about-grid">
       <div>
-        <p class="eyebrow reveal">Quiénes somos</p>
+        <p class="eyebrow reveal">${S.ebQuienes}</p>
         <h2 class="reveal">${esc(d.aboutTitle || "")}</h2>
         <p class="reveal" style="transition-delay:80ms">${esc(d.aboutText || "")}</p>
       </div>
-      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(imgUrl(d.aboutImage))}" alt="Nosotros" loading="lazy">${attributionHTML(d.aboutImage, "attribution--about")}</div>` : ""}
+      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(imgUrl(d.aboutImage))}" alt="${S.navNosotros}" loading="lazy">${attributionHTML(d.aboutImage, "attribution--about")}</div>` : ""}
     </div>
   </div>
 </section>
@@ -547,11 +604,11 @@ ${socialHTML}
 
 <section id="contacto" class="cta">
   <div class="wrap">
-    <p class="eyebrow reveal">¿Empezamos?</p>
-    <h2 class="reveal">${esc(d.ctaTitle || "Cuéntanos sobre tu proyecto")}</h2>
-    <p class="reveal" style="transition-delay:80ms">${esc(d.ctaSubtext || "Respondemos rápido. Escríbenos y agendemos una conversación.")}</p>
+    <p class="eyebrow reveal">${S.ebEmpezamos}</p>
+    <h2 class="reveal">${esc(d.ctaTitle || S.ctaTitleFallback)}</h2>
+    <p class="reveal" style="transition-delay:80ms">${esc(d.ctaSubtext || S.ctaSubtextFallback)}</p>
     <div class="reveal" style="transition-delay:140ms">
-      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.contactCtaText || d.ctaText || "Escribir por WhatsApp")} →</a>` : d.email ? `<a class="btn" href="mailto:${esc(d.email)}">Enviar correo →</a>` : ""}
+      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.contactCtaText || d.ctaText || S.contactCtaWa)} →</a>` : d.email ? `<a class="btn" href="mailto:${esc(d.email)}">${S.enviarCorreo} →</a>` : ""}
     </div>
   </div>
 </section>
@@ -560,7 +617,11 @@ ${socialHTML}
   <div class="wrap foot">
     <div>
       <div class="foot-brand">${esc(d.logoText || d.businessName || "MARCA")}</div>
-      <small>${esc([d.location, d.phone, d.email].filter(Boolean).join("  ·  "))}</small>
+      <small>${[
+        d.location ? esc(d.location) : "",
+        d.phone ? `<a href="${telLink(d.phone)}">${esc(d.phone)}</a>` : "",
+        d.email ? `<a href="mailto:${esc(d.email)}">${esc(d.email)}</a>` : "",
+      ].filter(Boolean).join("  ·  ")}</small>
     </div>
     <div class="foot-links">${socials}</div>
     ${footerAttributionHTML(unsplashAttributions)}
