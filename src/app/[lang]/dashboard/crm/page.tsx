@@ -168,7 +168,14 @@ function SortableLeadCard({ lead, onClick, onQuickStage }: { lead: Lead; onClick
           {lead.business?.phone && (
             <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-600">
               <Phone className="h-3 w-3 text-zinc-400" />
-              {lead.business.phone}
+              <a
+                href={`tel:${lead.business.phone}`}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="hover:text-zinc-900 hover:underline"
+              >
+                {lead.business.phone}
+              </a>
               {lead.business.isWhatsapp && (
                 <MessageCircle className="h-3 w-3 text-emerald-500" />
               )}
