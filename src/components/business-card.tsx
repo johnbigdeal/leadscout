@@ -3,7 +3,8 @@
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair } from "lucide-react";
+import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair, TrendingUp } from "lucide-react";
+import { reviewsInsight } from "@/lib/reviews-insight";
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -98,6 +99,18 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
             )}
           </div>
         )}
+
+        {(() => {
+          const insight = reviewsInsight(business.rating, business.reviewsCount);
+          return insight ? (
+            <div className="mt-2">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+                {insight.label}
+              </span>
+            </div>
+          ) : null;
+        })()}
 
         <div className="mt-3 space-y-1.5">
           {business.address && (
