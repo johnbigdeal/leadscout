@@ -84,6 +84,10 @@ export default function DashboardClient({
   const router = useRouter();
   const { currency } = useCurrency();
   const pathname = usePathname();
+  /* El builder necesita altura definida para que su preview (iframe) tenga
+     scroll interno y los elementos position:fixed (FAB de WhatsApp) se anclen
+     al viewport del iframe y no al fondo del contenido. */
+  const isBuilder = pathname.includes("/dashboard/builder/");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -191,7 +195,7 @@ export default function DashboardClient({
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex ${isBuilder ? "h-screen overflow-hidden" : "min-h-screen"}`}>
       {/* Desktop sidebar */}
       <aside
         className={`hidden md:flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ${
@@ -302,7 +306,7 @@ export default function DashboardClient({
             </button>
           </div>
         )}
-        <main className="flex-1 bg-background">{children}</main>
+        <main className={`flex-1 bg-background ${isBuilder ? "min-h-0 overflow-hidden" : ""}`}>{children}</main>
       </div>
 
       {!pathname.includes('/dashboard/settings/plans') && (
