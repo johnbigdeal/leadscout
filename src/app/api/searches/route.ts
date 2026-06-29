@@ -268,7 +268,7 @@ async function runPostProcess(upserted: (typeof businesses.$inferSelect)[]) {
   }
 }
 
-async function runPipeline(searchId: string, orgId: string, keywords: string, location: string, channels: string[], linkedinUrls: string[] = [], maxResults: number = 50) {
+async function runPipeline(searchId: string, orgId: string, keywords: string, location: string, channels: string[], linkedinUrls: string[] = [], maxResults: number = 100) {
   try {
     await db.update(searches).set({ status: "running" }).where(eq(searches.id, searchId));
 
@@ -297,7 +297,7 @@ async function runPipeline(searchId: string, orgId: string, keywords: string, lo
       });
     }
 
-    /* Hard cap on leads per search by plan (Free: 25, Pro: 50). */
+    /* Hard cap on leads per search (100 para todos los planes). */
     const finalUpserted = Array.from(allUpserted.values()).slice(0, maxResults);
 
     for (const biz of finalUpserted) {
@@ -349,10 +349,10 @@ export async function POST(request: Request) {
 
   const isSuperAdmin = profile?.role === "super_admin";
 
-  /* Check plan limits - Free: 1 search/day per user + referral credits. Super admin bypass.
-     Leads per search by plan: Free 25, Pro/super admin 50. */
+  /* Plan check (Free: 1 búsqueda/día + créditos; super admin bypass). La CANTIDAD
+     de leads por búsqueda NO se restringe por plan: 100 para todos. */
   let consumesCredit = false;
-  let maxResults = 50;
+  const maxResults = 100;
   if (!isSuperAdmin) {
     const limits = await getPlanLimits(orgId, user.id);
     if (!limits.canSearch) {
@@ -369,7 +369,6 @@ export async function POST(request: Request) {
     if (limits.plan === "free" && (limits.usedToday ?? 0) >= 1) {
       consumesCredit = true;
     }
-    maxResults = limits.plan === "pro" ? 50 : 25;
   }
 
   const [search] = await db
