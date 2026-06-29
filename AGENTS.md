@@ -113,7 +113,7 @@ messages/
 1. **Toda API route:** `export const dynamic = "force-dynamic"`
 2. **Auth:** Usar `requireAuth(request)` desde `@/lib/auth` (no duplicar)
 3. **Moneda:** Todo en USD en DB. Conversión en UI via `CurrencyContext`
-4. **Idioma:** Español únicamente. Strings en `messages/es.json` (NO agregar pt-BR ni otros locales)
+4. **Idioma de la app:** la UI del dashboard es español únicamente (`messages/es.json`, NO agregar otros locales). Distinto: los **sitios generados** sí pueden ser `es`/`en` (ver `d.lang` en Builder)
 5. **Client Components:** Agregar `"use client"` al tope
 6. **Server Components:** Obtener auth del servidor (ver `dashboard/layout.tsx`)
 7. **Zod v4:** Usar `result.error.issues` (NO `.errors`), path puede ser `string | symbol` — castear
@@ -144,6 +144,8 @@ messages/
   4. Guarda en `custom_domains` + actualiza `websites`
 - **DNS cleanup:** Al borrar website o unpublish, se borra el registro DNS de Cloudflare
 - **Multi-domain:** Tabla `available_domains` define qué dominios usar (leadscout.lat, pyme.live, brber.xyz)
+- **Idioma del sitio generado:** `d.lang` (`"es"|"en"`). `generateHTML` traduce las etiquetas fijas (nav, secciones, botones, fallbacks) vía mapa `STRINGS` y setea `<html lang>`. El contenido lo redacta la IA: `POST /api/generate-copy` con param `language`. Selector de idioma en el modal de IA y en la pestaña Estilo del builder (setea `d.lang`).
+- **Teléfono en el sitio:** el header muestra el teléfono (`.nav-phone`, visible en móvil y escritorio) que dirige a **WhatsApp** (fallback `tel:` si no hay WhatsApp). Footer con teléfono (`tel:`) y email (`mailto:`) clickables. El FAB de WhatsApp es `position:fixed` (persistente desde el tope)
 
 ### Imágenes (Unsplash)
 - **Búsqueda:** `GET /api/images/search?q=&page=&per_page=`
@@ -153,10 +155,18 @@ messages/
 - **Límite:** 50 requests/hour (free tier)
 
 ### CRM
-- **Leads** tienen `categoryId` → `leadCategories.name`
+- **Leads** tienen `categoryId` → `leadCategories.name` y `pipelineId`. El tablero filtra por pipeline activo; `GET /api/leads` incluye leads con `pipelineId` NULL para que no desaparezcan. `/api/pipelines` y el default del POST ordenan por `createdAt` (pipeline activo estable)
 - **Pipelines** personalizables por org
-- **Kanban:** Drag-and-drop entre stages
+- **Kanban:** Drag-and-drop entre stages (persiste vía `PATCH /api/leads/[id]`)
 - **Services:** Recurrencia (único, mensual, anual, lifetime)
+
+### Planes y límites (solo el plan free se restringe)
+- **`getPlanLimits`** (`src/lib/plans.ts`): `isPro = plan === "pro" && status === "active"` (un Pro `past_due` cae a free). **Pro y super admin = ilimitados.**
+- **Leads por búsqueda: 100 para TODOS** (sin cap por plan). El free mantiene **1 búsqueda/día** (`searches/route.ts`). ⚠️ Más leads = más costo Apify.
+- **Categorías / servicios / tags:** free = 3. Las rutas (`lead-categories`, `services`, `leads/[id]`) hacen bypass con `!ctx.isSuperAdmin` (pro/super admin sin límite). Pipelines: free = 1.
+- **Onboarding self-serve:** membership `approved: true` al registrarse (sin aprobación manual). `/api/onboarding` es **idempotente + transaccional** (evita cuentas a medias / orgs huérfanas).
+- **Confirmación de email:** `signUp` con `emailRedirectTo` → `/es/auth/confirm`. Requiere "Confirm email" ON + SMTP Resend en Supabase. Cada registro guarda el correo en `subscribers`.
+- **Reviews insight** (`src/lib/reviews-insight.ts`): señal de oportunidad de venta (sin/pocas reseñas, rating 3.0–4.2) desde `rating`+`reviewsCount`; se muestra en `business-card.tsx`.
 
 ### Branding (logo + colores)
 - **Logo:** "LeadScout Modern Logo v3". Assets en `public/brand/` — `leadscout-logo[-light][@2x].png` (lockup) y `leadscout-mark[-light][@2x].png` (icono). La versión `-light` (blanco) es para fondos oscuros (sidebar navy). Favicon/app icon: `src/app/icon.png` + `apple-icon.png` (convención de archivo de Next; NO hay `favicon.ico`)
@@ -187,6 +197,7 @@ messages/
 | `cloudflareAccounts` | Cuenta Cloudflare conectada. `apiToken`, `accountId` |
 | `searchShares` | Tokens para compartir búsquedas |
 | `apifyRuns` | Tracking de runs de Apify |
+| `subscribers` | Correos capturados en el registro para campañas. `email` (único), `source`, `userId`, `unsubscribedAt` |
 
 ---
 
