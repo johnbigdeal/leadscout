@@ -45,8 +45,7 @@ export async function POST(request: Request) {
     '  "socialTitle": "título sección redes sociales, máx 5 palabras",\n' +
     '  "ctaTitle": "invitación a contactar, máx 6 palabras",\n' +
     '  "ctaSubtext": "1 frase amable de cierre",\n' +
-    '  "contactCtaText": "texto del botón final, 2-4 palabras",\n' +
-    '  "whatsappMessage": "mensaje que el cliente enviaría por WhatsApp"\n' +
+    '  "contactCtaText": "texto del botón final, 2-4 palabras"\n' +
     "}";
 
   const promptEn =
@@ -71,8 +70,7 @@ export async function POST(request: Request) {
     '  "socialTitle": "social-media-section title, max 5 words",\n' +
     '  "ctaTitle": "invitation to get in touch, max 6 words",\n' +
     '  "ctaSubtext": "1 friendly closing sentence",\n' +
-    '  "contactCtaText": "final button text, 2-4 words",\n' +
-    '  "whatsappMessage": "message the customer would send on WhatsApp"\n' +
+    '  "contactCtaText": "final button text, 2-4 words"\n' +
     "}";
 
   const prompt = lang === "en" ? promptEn : promptEs;
