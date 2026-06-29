@@ -47,13 +47,14 @@ Buscador inteligente de prospectos multi-canal con CRM Kanban, panel de ventas, 
 - Email + password con validación Zod
 - Magic Links (login sin password)
 - Forgot password con email reset
-- Email confirmation
-- Middleware de Next.js para protección a nivel edge
-- Superadmin + flujo de aprobación de usuarios
+- Email confirmation (Supabase + SMTP Resend; requiere "Confirm email" ON)
+- Proxy de Next.js (`src/proxy.ts`) para locale + protección a nivel edge
+- Superadmin; registro **self-serve** (membership auto-aprobado en el onboarding)
 
 ### Otros
 - **Magic links** — compartir resultados de búsqueda públicamente sin login
-- **Idioma** — español únicamente (next-intl con locale `es`)
+- **Planes** — solo el plan free se restringe (cat./serv./tags = 3, 1 búsqueda/día). Leads por búsqueda: **100 para todos**. Pro/super admin sin límite
+- **Idioma** — la app es español únicamente (`messages/es.json`); los **sitios generados** se pueden crear en español o inglés (selector + IA)
 - **Deploy en Vercel** — API routes con `maxDuration = 300` para scraping síncrono
 
 ---
