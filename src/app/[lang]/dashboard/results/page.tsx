@@ -100,6 +100,10 @@ export default function ResultsPage() {
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [creatingCat, setCreatingCat] = useState(false);
+  const [showNewPipeline, setShowNewPipeline] = useState(false);
+  const [newPipelineName, setNewPipelineName] = useState("");
+  const [newPipelineCategory, setNewPipelineCategory] = useState("");
+  const [creatingPipeline, setCreatingPipeline] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
 
@@ -252,6 +256,35 @@ export default function ResultsPage() {
     setShowAddDialog(false);
     setSelectedIds(new Set());
     setBatchIds([]);
+  }
+
+  async function createPipeline() {
+    const name = newPipelineName.trim();
+    if (!name) return;
+    setCreatingPipeline(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/pipelines", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name, category: newPipelineCategory.trim() || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "No se pudo crear el pipeline.");
+        return;
+      }
+      const p = await res.json();
+      setPipelines((prev) => [...prev, p]);
+      setAddPipelineId(p.id);
+      setNewPipelineName("");
+      setNewPipelineCategory("");
+      setShowNewPipeline(false);
+      toast.success("Pipeline creado");
+    } finally {
+      setCreatingPipeline(false);
+    }
   }
 
   async function createCategory() {
@@ -715,16 +748,56 @@ export default function ResultsPage() {
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Pipeline
               </label>
-              <select
-                value={addPipelineId}
-                onChange={(e) => setAddPipelineId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="__auto__">Automático (según categoría)</option>
-                {pipelines.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}{p.category ? ` (${p.category})` : ""}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={addPipelineId}
+                  onChange={(e) => setAddPipelineId(e.target.value)}
+                  className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="__auto__">Automático (según categoría)</option>
+                  {pipelines.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}{p.category ? ` (${p.category})` : ""}</option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewPipeline((v) => !v)}
+                  aria-label="Crear nuevo pipeline"
+                  title="Crear nuevo pipeline"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {showNewPipeline && (
+                <div className="mt-2 space-y-2">
+                  <Input
+                    value={newPipelineName}
+                    onChange={(e) => setNewPipelineName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); createPipeline(); } }}
+                    placeholder="Nombre del pipeline"
+                    className="h-9 text-sm"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newPipelineCategory}
+                      onChange={(e) => setNewPipelineCategory(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); createPipeline(); } }}
+                      placeholder="Categoría (opcional)"
+                      className="h-9 flex-1 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={createPipeline}
+                      disabled={creatingPipeline || !newPipelineName.trim()}
+                    >
+                      {creatingPipeline ? "Creando..." : "Crear"}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {addPipelineId === "__auto__" && (
                 <p className="mt-1 text-xs text-zinc-500">
                   Cada negocio irá al pipeline que coincida con su categoría; los que no coincidan, al pipeline por defecto.
