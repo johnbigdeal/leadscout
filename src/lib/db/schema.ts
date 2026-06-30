@@ -347,3 +347,36 @@ export const subscribers = pgTable("subscribers", {
   unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* =========================================================================
+   ROADMAP / PANEL DE IDEAS (comunidad)
+   Tablas GLOBALES (sin orgId): un solo roadmap público para toda la
+   plataforma. La autorización vive en las API routes (/api/roadmap/*).
+   ========================================================================= */
+
+/* Ideas propuestas por la comunidad. status: proposed | considering | in_progress.
+   voteCount es denormalizado y se mantiene en la API route al votar (no hay
+   triggers en este proyecto). */
+export const roadmapIdeas = pgTable("roadmap_ideas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("proposed"),
+  authorId: uuid("author_id").notNull(), // profiles.id (FK implícita, como memberships.userId)
+  voteCount: integer("vote_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index().on(t.status),
+  voteCountIdx: index().on(t.voteCount),
+}));
+
+/* Un voto por usuario por idea (uniqueIndex evita doble votación). */
+export const roadmapVotes = pgTable("roadmap_votes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ideaId: uuid("idea_id").notNull().references(() => roadmapIdeas.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ideaUserUnique: uniqueIndex().on(t.ideaId, t.userId),
+}));
