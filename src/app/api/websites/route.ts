@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { websites, memberships, businesses, leads, socialProfiles, pipelines, leadCategories } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { translateCategory } from "@/lib/paralux/category-translations";
+import { generateCopySafe } from "@/lib/paralux/generate-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
         .where(eq(socialProfiles.businessId, resolvedBusinessId));
 
       const instagram = socials.find(s => s.platform === "instagram")?.url || "";
-      const linkedin = socials.find(s => s.platform === "linkedin")?.url || "";
+      const facebook = socials.find(s => s.platform === "facebook")?.url || "";
 
       /* Search for real images — prefer lead category, then business category, then business name */
       const searchQuery = leadCategoryName
@@ -137,25 +138,64 @@ export async function POST(request: Request) {
         : "business";
       const images = await searchUnsplashImages(searchQuery, 8);
 
+      const categoryEs = leadCategoryName || (biz.category ? translateCategory(biz.category) : "");
+      const phoneDigits = biz.phone ? biz.phone.replace(/\D/g, "") : "";
+
+      /* Redes sociales reales del lead (sin los placeholders del DEFAULT). */
+      const socialLinks = [
+        instagram ? { type: "instagram", url: instagram } : null,
+        facebook ? { type: "facebook", url: facebook } : null,
+        phoneDigits ? { type: "whatsapp", url: `https://wa.me/${phoneDigits}` } : null,
+      ].filter(Boolean);
+
+      /* Base 100% derivada del lead. Cubre TODOS los campos de texto para que el
+         builder no rellene ninguno con el contenido dummy de DEFAULT, incluso si
+         la IA no está disponible. La IA (abajo) reemplaza el copy de marketing. */
       initialData = {
         businessName: biz.name || "",
         logoText: (biz.name || "").toUpperCase().slice(0, 16),
-        tagline: biz.category || "",
+        tagline: categoryEs || "",
         heroHeadline: biz.name || "",
-        heroSubtext: `Profesionales en ${biz.category || "nuestro rubro"}. Contáctanos hoy.`,
-        aboutTitle: "Sobre nosotros",
-        aboutText: biz.category
-          ? `Somos especialistas en ${biz.category}. Con años de experiencia, ofrecemos servicios de calidad adaptados a tus necesidades.`
-          : "Somos un equipo apasionado por lo que hacemos. Cada proyecto es una oportunidad de crear algo extraordinario.",
+        heroSubtext: categoryEs
+          ? `Profesionales en ${categoryEs}. Contáctanos hoy.`
+          : "Contáctanos hoy y trabajemos juntos.",
         ctaText: "Contactar",
+        aboutTitle: "Sobre nosotros",
+        aboutText: categoryEs
+          ? `Somos especialistas en ${categoryEs}. Con años de experiencia, ofrecemos servicios de calidad adaptados a tus necesidades.`
+          : "Somos un equipo apasionado por lo que hacemos. Cada proyecto es una oportunidad de crear algo extraordinario.",
+        /* Vacío = el generador omite la sección de cita (sin texto dummy). */
+        stmtText: "",
+        servicesTitle: "Servicios",
+        services: categoryEs
+          ? [
+              { title: categoryEs, desc: `Nuestro servicio principal de ${categoryEs}.` },
+              { title: "Atención personalizada", desc: "Asesoramiento adaptado a lo que necesitás." },
+              { title: "Calidad garantizada", desc: "Resultados profesionales en los que podés confiar." },
+            ]
+          : [
+              { title: "Servicio principal", desc: "Nuestra propuesta central para vos." },
+              { title: "Atención personalizada", desc: "Asesoramiento adaptado a lo que necesitás." },
+              { title: "Calidad garantizada", desc: "Resultados profesionales en los que podés confiar." },
+            ],
+        galleryTitle: "Proyectos",
+        googleReviewsTitle: "Lo que dicen nuestros clientes",
+        /* Sin reseñas inventadas: solo se mostrará el botón "Dejá tu reseña". */
+        googleReviews: [],
+        socialTitle: "Seguinos",
+        socialLinks,
+        ctaTitle: "¿Hablamos?",
+        ctaSubtext: "Respondemos rápido. Escribinos y coordinemos.",
+        contactCtaText: "Escribir por WhatsApp",
         phone: biz.phone || "",
         /* WhatsApp del sitio = teléfono real del lead (no el placeholder del DEFAULT). */
         whatsappEnabled: !!biz.phone,
-        whatsappNumber: biz.phone ? biz.phone.replace(/\D/g, "") : "",
+        whatsappNumber: phoneDigits,
         whatsappMessage: `Hola ${biz.name || ""}, vi su sitio y me gustaría comprar.`,
         email: biz.email || "",
         location: biz.address || "",
         instagram,
+        facebook,
         website: biz.website || "",
         /* Google review link from the business' Place ID (from Maps search),
            used by the web builder's "Dejá tu reseña en Google" button. */
@@ -164,18 +204,48 @@ export async function POST(request: Request) {
           : "",
         heroImage: images[0] || { url: "https://picsum.photos/seed/bizhero/1800/1100" },
         aboutImage: images[1] || { url: "https://picsum.photos/seed/bizabout/1000/1250" },
-        stmtImage: images[2] || { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
+        stmtImage: images[2] || { url: "https://picsum.photos/seed/bizstmt/1800/1000" },
         gallery: images.slice(3, 6) || [],
-        servicesTitle: "Servicios",
-        services: [
-          { title: "Servicio Principal", desc: "Descripción de nuestro servicio principal." },
-          { title: "Especialización", desc: "Descripción de nuestra especialización." },
-          { title: "Consultoría", desc: "Asesoramiento personalizado para tus necesidades." },
-        ],
         preset: "modern",
         dark: false,
         accent: "#3B3BF5",
       };
+
+      /* Auto-relleno con IA: genera copy de marketing tailored al lead y
+         reemplaza el texto base. Best-effort — si la IA falla, queda la base
+         derivada del lead (nunca contenido dummy). */
+      const copy = await generateCopySafe({
+        name: biz.name || "",
+        what: categoryEs || biz.name || "negocio",
+        language: "es",
+      });
+
+      if (copy) {
+        const pick = (v: unknown, fallback: any) =>
+          typeof v === "string" && v.trim() ? v.trim() : fallback;
+
+        initialData.tagline = pick(copy.tagline, initialData.tagline);
+        initialData.heroHeadline = pick(copy.heroHeadline, initialData.heroHeadline);
+        initialData.heroSubtext = pick(copy.heroSubtext, initialData.heroSubtext);
+        initialData.ctaText = pick(copy.ctaText, initialData.ctaText);
+        initialData.aboutTitle = pick(copy.aboutTitle, initialData.aboutTitle);
+        initialData.aboutText = pick(copy.aboutText, initialData.aboutText);
+        initialData.stmtText = pick(copy.stmtText, initialData.stmtText);
+        initialData.servicesTitle = pick(copy.servicesTitle, initialData.servicesTitle);
+        initialData.galleryTitle = pick(copy.galleryTitle, initialData.galleryTitle);
+        initialData.googleReviewsTitle = pick(copy.googleReviewsTitle, initialData.googleReviewsTitle);
+        initialData.socialTitle = pick(copy.socialTitle, initialData.socialTitle);
+        initialData.ctaTitle = pick(copy.ctaTitle, initialData.ctaTitle);
+        initialData.ctaSubtext = pick(copy.ctaSubtext, initialData.ctaSubtext);
+        initialData.contactCtaText = pick(copy.contactCtaText, initialData.contactCtaText);
+
+        if (Array.isArray(copy.services)) {
+          const cleaned = copy.services
+            .filter((s) => s && (s.title || s.desc))
+            .map((s) => ({ title: String(s.title || ""), desc: String(s.desc || "") }));
+          if (cleaned.length) initialData.services = cleaned;
+        }
+      }
     }
   }
 
