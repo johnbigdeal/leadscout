@@ -21,6 +21,7 @@ import {
   Menu,
   Gift,
   Lightbulb,
+  GraduationCap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
@@ -140,6 +141,7 @@ export default function DashboardClient({
           <NavItem href="/dashboard/sales" icon={<DollarSign className="h-4 w-4" />} label={t("sales")} collapsed={isCollapsed} onNavigate={closeOnNav} />
           <NavItem href="/dashboard/websites" icon={<Globe className="h-4 w-4" />} label="Websites" collapsed={isCollapsed} onNavigate={closeOnNav} />
           <NavItem href="/dashboard/referrals" icon={<Gift className="h-4 w-4" />} label="Referidos" collapsed={isCollapsed} onNavigate={closeOnNav} />
+          <NavItem href="/dashboard/trainings" icon={<GraduationCap className="h-4 w-4" />} label="Entrenamientos" collapsed={isCollapsed} onNavigate={closeOnNav} />
           <NavItem href="/dashboard/roadmap" icon={<Lightbulb className="h-4 w-4" />} label="Ideas" collapsed={isCollapsed} onNavigate={closeOnNav} />
           {isSuperAdmin && (
             <NavItem href="/dashboard/admin" icon={<Shield className="h-4 w-4" />} label="Admin" collapsed={isCollapsed} onNavigate={closeOnNav} />

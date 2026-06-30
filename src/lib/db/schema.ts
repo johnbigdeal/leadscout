@@ -381,3 +381,34 @@ export const roadmapVotes = pgTable("roadmap_votes", {
 }, (t) => ({
   ideaUserUnique: uniqueIndex().on(t.ideaId, t.userId),
 }));
+
+/* Entrenamientos (academia tipo Kajabi). Contenido GLOBAL de la plataforma:
+   lo crea el super_admin; lo ven todos los usuarios según su plan.
+   Acceso por sección: "free" la ven todos; "pro" solo plan pro / super_admin. */
+export const trainingSections = pgTable("training_sections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  description: text("description"), // HTML enriquecido (Tiptap), opcional
+  accessLevel: text("access_level").notNull().default("free"), // "free" | "pro"
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orderIdx: index().on(t.order),
+}));
+
+export const trainingLessons = pgTable("training_lessons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sectionId: uuid("section_id").notNull().references(() => trainingSections.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  type: text("type").notNull(), // "video" | "text" | "pdf"
+  content: text("content"), // HTML enriquecido (descripción/cuerpo)
+  embedUrl: text("embed_url"), // src del iframe KOMMODO (type=video)
+  aspectRatio: text("aspect_ratio").default("16 / 9"),
+  fileUrl: text("file_url"), // URL Vercel Blob del PDF (type=pdf)
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  sectionIdx: index().on(t.sectionId),
+}));
