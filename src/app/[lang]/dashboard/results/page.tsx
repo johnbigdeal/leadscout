@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink } from "lucide-react";
 import { BusinessCard, type Business } from "@/components/business-card";
+import { matchPipeline } from "@/lib/pipeline-match";
 import { toast } from "sonner";
 
 function InstagramIcon({ className }: { className?: string }) {
@@ -43,7 +44,7 @@ type Filters = {
   inCrm: "all" | "yes" | "no"; nameQuery: string;
 };
 
-type PipelineOption = { id: string; name: string; stages: string[] };
+type PipelineOption = { id: string; name: string; category: string | null; stages: string[] };
 type CategoryOption = { id: string; name: string; color: string };
 
 const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, inCrm: "all", nameQuery: "" };
@@ -94,7 +95,7 @@ export default function ResultsPage() {
   const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [addPipelineId, setAddPipelineId] = useState<string>("");
+  const [addPipelineId, setAddPipelineId] = useState<string>("__auto__");
   const [addCategoryId, setAddCategoryId] = useState<string>("");
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
@@ -152,9 +153,7 @@ export default function ResultsPage() {
       fetch("/api/lead-categories", { headers }),
     ]);
     if (pRes.ok) {
-      const pData = await pRes.json();
-      setPipelines(pData);
-      if (pData.length > 0) setAddPipelineId(pData[0].id);
+      setPipelines(await pRes.json());
     }
     if (cRes.ok) setCategories(await cRes.json());
   }, []);
@@ -183,12 +182,13 @@ export default function ResultsPage() {
     }
   }
 
-  async function handleAddToCrm(businessIds: string | string[], opts?: { pipelineId?: string; categoryId?: string }) {
+  async function handleAddToCrm(businessIds: string | string[], opts?: { pipelineId?: string; categoryId?: string; autoMatch?: boolean }) {
     const ids = Array.isArray(businessIds) ? businessIds : [businessIds];
     if (ids.length === 0) return;
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
     const body: Record<string, unknown> = { businessIds: ids };
+    if (opts?.autoMatch) body.autoMatch = true;
     if (opts?.pipelineId) body.pipelineId = opts.pipelineId;
     if (opts?.categoryId) body.categoryId = opts.categoryId;
 
@@ -220,6 +220,18 @@ export default function ResultsPage() {
     }
   }
 
+  // Agregado individual: si la categoría del negocio coincide con un pipeline,
+  // lo agrega directo a ese pipeline sin abrir el diálogo. Si no, abre el diálogo.
+  async function handleSmartAdd(biz: Business) {
+    const m = matchPipeline(biz.category, pipelines);
+    if (m) {
+      await handleAddToCrm(biz.id, { pipelineId: m.id });
+      toast.success(`Agregado a "${m.name}"`);
+    } else {
+      openAddDialog([biz.id]);
+    }
+  }
+
   function openAddDialog(ids?: string[]) {
     if (ids && ids.length > 0) {
       setBatchIds(ids);
@@ -231,7 +243,11 @@ export default function ResultsPage() {
 
   async function confirmBatchAdd() {
     setIsAdding(true);
-    await handleAddToCrm(batchIds, { pipelineId: addPipelineId, categoryId: addCategoryId || undefined });
+    if (addPipelineId === "__auto__") {
+      await handleAddToCrm(batchIds, { autoMatch: true, categoryId: addCategoryId || undefined });
+    } else {
+      await handleAddToCrm(batchIds, { pipelineId: addPipelineId, categoryId: addCategoryId || undefined });
+    }
     setIsAdding(false);
     setShowAddDialog(false);
     setSelectedIds(new Set());
@@ -627,7 +643,7 @@ export default function ResultsPage() {
                             <div className="flex items-center gap-1.5">
                               {!leadIds.has(biz.id) ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/5"
-                                  onClick={(e) => { e.stopPropagation(); openAddDialog([biz.id]); }}>
+                                  onClick={(e) => { e.stopPropagation(); handleSmartAdd(biz); }}>
                                   <Plus className="mr-1 h-3 w-3" />
                                   {t("addToCrm")}
                                 </Button>
@@ -681,7 +697,7 @@ export default function ResultsPage() {
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="font-display text-lg">{t("contactInfo")}</DialogTitle>
           </DialogHeader>
-          {selected && <BusinessCard business={selected} onAddToCrm={(id) => handleAddToCrm(id)} />}
+          {selected && <BusinessCard business={selected} onAddToCrm={() => handleSmartAdd(selected)} />}
         </DialogContent>
       </Dialog>
 
@@ -704,10 +720,16 @@ export default function ResultsPage() {
                 onChange={(e) => setAddPipelineId(e.target.value)}
                 className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
+                <option value="__auto__">Automático (según categoría)</option>
                 {pipelines.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>{p.name}{p.category ? ` (${p.category})` : ""}</option>
                 ))}
               </select>
+              {addPipelineId === "__auto__" && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Cada negocio irá al pipeline que coincida con su categoría; los que no coincidan, al pipeline por defecto.
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">

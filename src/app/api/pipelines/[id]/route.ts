@@ -16,7 +16,7 @@ export async function PATCH(
   const ctx = result.ctx;
 
   const body = await request.json();
-  const allowedFields: Record<string, true> = { name: true, category: true, stages: true };
+  const allowedFields: Record<string, true> = { name: true, category: true, stages: true, isDefault: true };
 
   const updates: Record<string, unknown> = {};
   for (const key of Object.keys(body)) {
@@ -26,11 +26,22 @@ export async function PATCH(
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
-  const [updated] = await db
-    .update(pipelines)
-    .set(updates)
-    .where(and(eq(pipelines.id, id), eq(pipelines.orgId, ctx.orgId)))
-    .returning();
+  /* Solo un pipeline puede ser default por org: al marcar este, limpiar el resto
+     en una transacción. */
+  const updated = await db.transaction(async (tx) => {
+    if (updates.isDefault === true) {
+      await tx
+        .update(pipelines)
+        .set({ isDefault: false })
+        .where(eq(pipelines.orgId, ctx.orgId));
+    }
+    const [row] = await tx
+      .update(pipelines)
+      .set(updates)
+      .where(and(eq(pipelines.id, id), eq(pipelines.orgId, ctx.orgId)))
+      .returning();
+    return row;
+  });
 
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

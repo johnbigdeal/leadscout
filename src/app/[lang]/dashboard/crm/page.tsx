@@ -723,6 +723,7 @@ type Pipeline = {
   id: string;
   name: string;
   category: string | null;
+  isDefault: boolean;
   stages: string[];
 };
 
@@ -767,6 +768,23 @@ export default function CrmPage() {
     const res = await fetch("/api/lead-categories", { headers });
     if (res.ok) setCategories(await res.json());
   }, []);
+
+  async function handleSetDefaultPipeline(pipelineId: string) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/pipelines/${pipelineId}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ isDefault: true }),
+    });
+    if (res.ok) {
+      setPipelines((prev) => prev.map((p) => ({ ...p, isDefault: p.id === pipelineId })));
+      setActivePipeline((prev) => (prev ? { ...prev, isDefault: prev.id === pipelineId } : prev));
+      toast.success("Pipeline marcado como predeterminado");
+    } else {
+      toast.error("No se pudo marcar como predeterminado. Intentá de nuevo.");
+    }
+  }
 
   const fetchLeads = useCallback(async (pipelineId?: string) => {
     setLoadError(false);
@@ -1023,10 +1041,20 @@ export default function CrmPage() {
             <option value="__all__">Todos los prospectos</option>
             {pipelines.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} {p.category ? `(${p.category})` : ""}
+                {p.name} {p.isDefault ? "★ " : ""}{p.category ? `(${p.category})` : ""}
               </option>
             ))}
           </select>
+          {activePipeline && !activePipeline.isDefault && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleSetDefaultPipeline(activePipeline.id)}
+              title="Marcar como predeterminado"
+            >
+              Marcar como predeterminado
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => {
             if (plan === "free" && pipelines.length >= 1) {
               setUpgradeFeature("Pipelines ilimitados");

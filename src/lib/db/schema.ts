@@ -185,6 +185,7 @@ export const pipelines = pgTable("pipelines", {
     .references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category"),
+  isDefault: boolean("is_default").notNull().default(false),
   stages: text("stages").array().notNull().default(["new", "contacted", "qualified", "won", "lost"]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
