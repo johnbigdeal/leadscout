@@ -34,6 +34,44 @@ export async function sendEmail({
   return data;
 }
 
+export function sinpeProofSubmittedHtml(opts: {
+  orgName: string;
+  email: string;
+  amount: string;
+  reference?: string | null;
+  proofUrl: string;
+}): string {
+  const { orgName, email, amount, reference, proofUrl } = opts;
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: system-ui, sans-serif; padding: 32px; max-width: 600px; margin: 0 auto;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <h1 style="font-size: 22px; color: #1a1a2e;">Nuevo comprobante SINPE para verificar</h1>
+  </div>
+  <p style="font-size: 16px; color: #555;">Una organización subió un comprobante de pago SINPE Móvil:</p>
+  <table style="width: 100%; font-size: 15px; color: #333; border-collapse: collapse; margin: 16px 0;">
+    <tr><td style="padding: 6px 0; color: #888;">Organización</td><td style="padding: 6px 0; font-weight: 600;">${orgName}</td></tr>
+    <tr><td style="padding: 6px 0; color: #888;">Usuario</td><td style="padding: 6px 0;">${email}</td></tr>
+    <tr><td style="padding: 6px 0; color: #888;">Monto</td><td style="padding: 6px 0;">${amount}</td></tr>
+    <tr><td style="padding: 6px 0; color: #888;">Referencia</td><td style="padding: 6px 0;">${reference || "—"}</td></tr>
+  </table>
+  <div style="text-align: center; margin: 24px 0;">
+    <a href="${proofUrl}"
+       style="background: #f3f4f6; color: #1a1a2e; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; margin-right: 8px;">
+      Ver comprobante
+    </a>
+    <a href="https://leadscout.lat/dashboard/admin"
+       style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+      Revisar y aprobar
+    </a>
+  </div>
+  <p style="font-size: 14px; color: #999;">Panel de Administración → pestaña SINPE</p>
+</body>
+</html>`;
+}
+
 export function trialReminder3DaysHtml(name: string, daysLeft: number): string {
   return `
 <!DOCTYPE html>

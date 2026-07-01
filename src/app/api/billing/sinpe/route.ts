@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sinpePayments } from "@/lib/db/schema";
+import { sinpePayments, organizations } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import { sendEmail, sinpeProofSubmittedHtml } from "@/lib/integrations/resend";
+
+const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || "johnbigdeal@gmail.com";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +62,28 @@ export async function POST(request: Request) {
       reference: typeof reference === "string" && reference.trim() ? reference.trim() : null,
     })
     .returning();
+
+  /* Notificar al admin (no bloqueante). */
+  try {
+    const [org] = await db
+      .select({ name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, ctx.orgId))
+      .limit(1);
+    await sendEmail({
+      to: ADMIN_NOTIFY_EMAIL,
+      subject: `Nuevo comprobante SINPE — ${org?.name || ctx.orgId}`,
+      html: sinpeProofSubmittedHtml({
+        orgName: org?.name || ctx.orgId,
+        email: ctx.user.email || "—",
+        amount: created.amount,
+        reference: created.reference,
+        proofUrl: created.proofUrl,
+      }),
+    });
+  } catch (e) {
+    console.error("SINPE notify email error:", e);
+  }
 
   return NextResponse.json({ payment: created });
 }
