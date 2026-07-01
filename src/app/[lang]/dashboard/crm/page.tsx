@@ -44,6 +44,7 @@ import { UpgradeModal } from "@/components/upgrade-modal";
 import { FreeBadge } from "@/components/plan-badges";
 import { RichText } from "@/components/trainings/RichText";
 import { fetchTrainings } from "@/lib/trainings/client";
+import { isLatinoOwned } from "@/lib/business-attributes";
 
 type Business = {
   id: string;
@@ -56,6 +57,7 @@ type Business = {
   category: string | null;
   rating: string | null;
   reviewsCount: number | null;
+  rawJson?: unknown;
   seo?: { pagespeedPerf: number | null; pagespeedSeo: number | null; pagespeedA11y: number | null } | null;
   opportunityScore?: { score: number; reasons: string[] } | null;
   isLead?: boolean;
@@ -179,11 +181,18 @@ function SortableLeadCard({ lead, onClick, onQuickStage }: { lead: Lead; onClick
               </span>
             )}
           </div>
-          {lead.category && (
-            <div className="mt-1">
-              <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ backgroundColor: lead.category.color }}>
-                {lead.category.name}
-              </span>
+          {(lead.category || isLatinoOwned(lead.business?.rawJson)) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {lead.category && (
+                <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ backgroundColor: lead.category.color }}>
+                  {lead.category.name}
+                </span>
+              )}
+              {isLatinoOwned(lead.business?.rawJson) && (
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
+                  Negocio latino
+                </Badge>
+              )}
             </div>
           )}
           {(lead.business?.category || lead.business?.rating) && (

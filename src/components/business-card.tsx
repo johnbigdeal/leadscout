@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair, TrendingUp } from "lucide-react";
 import { reviewsInsight } from "@/lib/reviews-insight";
+import { isLatinoOwned } from "@/lib/business-attributes";
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -41,6 +42,7 @@ export type Business = {
   rating: string | null;
   reviewsCount: number | null;
   placeId?: string | null;
+  rawJson?: unknown;
   socialProfiles?: SocialProfile[];
   seo?: { pagespeedPerf: number | null; pagespeedSeo: number | null; pagespeedA11y: number | null } | null;
   opportunityScore?: { score: number; reasons: string[] } | null;
@@ -73,7 +75,14 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
                 <Crosshair className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="truncate text-base font-semibold text-foreground">{business.name}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="truncate text-base font-semibold text-foreground">{business.name}</h3>
+                  {isLatinoOwned(business.rawJson) && (
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
+                      Negocio latino
+                    </Badge>
+                  )}
+                </div>
                 {business.category && (
                   <p className="text-xs text-muted-foreground">{business.category}</p>
                 )}
