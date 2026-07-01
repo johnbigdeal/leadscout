@@ -79,6 +79,20 @@ interface AdminSubscription {
   paypalError?: string;
 }
 
+interface SinpePayment {
+  id: string;
+  orgId: string;
+  orgName?: string;
+  email?: string;
+  proofUrl: string;
+  reference: string | null;
+  amount: string;
+  status: string;
+  adminNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
 interface TrialData {
   orgId: string;
   orgName: string;
@@ -100,13 +114,14 @@ interface AdminSearch {
 }
 
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "trials" | "searches" | "referrals">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "sinpe" | "trials" | "searches" | "referrals">("overview");
   const [referrals, setReferrals] = useState<{ referrerEmail: string; referredEmail: string; referredAt: string }[]>([]);
   const [topReferrers, setTopReferrers] = useState<{ email: string; count: number }[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
+  const [sinpePayments, setSinpePayments] = useState<SinpePayment[]>([]);
   const [trials, setTrials] = useState<TrialData[]>([]);
   const [searches, setSearches] = useState<AdminSearch[]>([]);
   const [selectedSearches, setSelectedSearches] = useState<Set<string>>(new Set());
@@ -272,9 +287,42 @@ export default function AdminDashboardPage() {
     fetchUsers();
   }
 
+  async function fetchSinpePayments() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/sinpe", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setSinpePayments(data.payments);
+    }
+  }
+
+  async function handleSinpeAction(id: string, action: "approve" | "reject") {
+    let note: string | null = null;
+    if (action === "reject") {
+      note = prompt("Motivo del rechazo (opcional):");
+    } else if (!confirm("¿Aprobar el comprobante y activar Pro para esta organización?")) {
+      return;
+    }
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/admin/sinpe", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id, action, note }),
+    });
+    if (!res.ok) {
+      toast.error("No se pudo procesar el comprobante. Intenta de nuevo.");
+      return;
+    }
+    toast.success(action === "approve" ? "Comprobante aprobado, organización en Pro" : "Comprobante rechazado");
+    fetchSinpePayments();
+    fetchSubscriptions();
+    fetchOrgs();
+  }
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -317,6 +365,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "users"} onClick={() => setTab("users")} label={`Usuarios (${users.length})`} />
         <TabButton active={tab === "orgs"} onClick={() => setTab("orgs")} label={`Organizaciones (${orgs.length})`} />
         <TabButton active={tab === "subscriptions"} onClick={() => setTab("subscriptions")} label={`Suscripciones (${subscriptions.length})`} />
+        <TabButton active={tab === "sinpe"} onClick={() => setTab("sinpe")} label={`SINPE (${sinpePayments.filter((p) => p.status === "pending").length})`} />
         <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
         <TabButton active={tab === "searches"} onClick={() => setTab("searches")} label={`Búsquedas (${searches.length})`} />
         <TabButton active={tab === "referrals"} onClick={() => setTab("referrals")} label={`Referidos (${referrals.length})`} />
@@ -712,6 +761,89 @@ export default function AdminDashboardPage() {
                         </Button>
                       )}
                     </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* SINPE Tab */}
+      {tab === "sinpe" && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+              <tr>
+                <th className="pb-3 pl-4">Organización</th>
+                <th className="pb-3">Usuario</th>
+                <th className="pb-3">Monto</th>
+                <th className="pb-3">Referencia</th>
+                <th className="pb-3">Comprobante</th>
+                <th className="pb-3">Estado</th>
+                <th className="pb-3">Fecha</th>
+                <th className="pb-3 pr-4">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sinpePayments.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-sm text-zinc-400">
+                    No hay comprobantes SINPE.
+                  </td>
+                </tr>
+              )}
+              {sinpePayments.map((p) => (
+                <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="py-3 pl-4">{p.orgName || <span className="font-mono text-xs">{p.orgId.slice(0, 8)}...</span>}</td>
+                  <td className="py-3 text-zinc-600">{p.email || "—"}</td>
+                  <td className="py-3">{p.amount}</td>
+                  <td className="py-3 text-zinc-500">{p.reference || "—"}</td>
+                  <td className="py-3">
+                    <a
+                      href={p.proofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Ver
+                    </a>
+                  </td>
+                  <td className="py-3">
+                    {p.status === "approved" ? (
+                      <Badge className="bg-emerald-100 text-emerald-700">Aprobado</Badge>
+                    ) : p.status === "rejected" ? (
+                      <Badge className="bg-red-100 text-red-700">Rechazado</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-700">Pendiente</Badge>
+                    )}
+                  </td>
+                  <td className="py-3 text-zinc-500">{new Date(p.createdAt).toLocaleDateString("es")}</td>
+                  <td className="py-3 pr-4">
+                    {p.status === "pending" ? (
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-emerald-600 hover:bg-emerald-50"
+                          onClick={() => handleSinpeAction(p.id, "approve")}
+                        >
+                          <CheckCircle className="mr-1 h-3 w-3" />
+                          Aprobar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50"
+                          onClick={() => handleSinpeAction(p.id, "reject")}
+                        >
+                          <XCircle className="mr-1 h-3 w-3" />
+                          Rechazar
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-400">{p.adminNote || "—"}</span>
+                    )}
                   </td>
                 </tr>
               ))}

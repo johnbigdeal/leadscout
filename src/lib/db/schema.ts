@@ -412,3 +412,22 @@ export const trainingLessons = pgTable("training_lessons", {
 }, (t) => ({
   sectionIdx: index().on(t.sectionId),
 }));
+
+/* Comprobantes de pago SINPE Móvil (Costa Rica). El usuario sube el
+   comprobante; el super_admin lo verifica y aprueba, lo que hace upgrade
+   a Pro de la organización. */
+export const sinpePayments = pgTable("sinpe_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id"), // quién envió el comprobante
+  proofUrl: text("proof_url").notNull(), // URL Vercel Blob (imagen/PDF)
+  reference: text("reference"), // referencia/nota opcional del usuario
+  amount: text("amount").notNull().default("10000 CRC"),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
+  adminNote: text("admin_note"), // nota del admin (motivo de rechazo, etc.)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+}, (t) => ({
+  orgIdx: index().on(t.orgId),
+  statusIdx: index().on(t.status),
+}));

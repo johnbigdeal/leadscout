@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Loader2, Zap, Globe, Search, LayoutDashboard, Crown, Smartphone, Copy } from "lucide-react";
+import { Check, X, Loader2, Zap, Globe, Search, LayoutDashboard, Crown, Smartphone, Copy, Upload, Clock } from "lucide-react";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -71,6 +71,62 @@ export default function PlansPage() {
     } catch {
       /* noop */
     }
+  }
+
+  // Comprobante SINPE
+  const [sinpePayment, setSinpePayment] = useState<{ status: string; createdAt: string; adminNote: string | null } | null>(null);
+  const [sinpeFile, setSinpeFile] = useState<File | null>(null);
+  const [sinpeReference, setSinpeReference] = useState("");
+  const [sinpeUploading, setSinpeUploading] = useState(false);
+  const [sinpeError, setSinpeError] = useState("");
+
+  useEffect(() => {
+    fetchSinpePayment();
+  }, []);
+
+  async function fetchSinpePayment() {
+    const headers = await getAuthHeaders();
+    try {
+      const res = await fetch("/api/billing/sinpe", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setSinpePayment(data.payment);
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function submitSinpeProof() {
+    if (!sinpeFile) return;
+    setSinpeUploading(true);
+    setSinpeError("");
+    try {
+      const headers = await getAuthHeaders();
+      const fd = new FormData();
+      fd.append("file", sinpeFile);
+      const upRes = await fetch("/api/upload", { method: "POST", headers, body: fd });
+      if (!upRes.ok) throw new Error("No se pudo subir el archivo.");
+      const { url } = await upRes.json();
+
+      const jsonHeaders = { ...headers, "Content-Type": "application/json" };
+      const res = await fetch("/api/billing/sinpe", {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ proofUrl: url, reference: sinpeReference }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "No se pudo enviar el comprobante.");
+      }
+      const data = await res.json();
+      setSinpePayment(data.payment);
+      setSinpeFile(null);
+      setSinpeReference("");
+    } catch (e) {
+      setSinpeError(e instanceof Error ? e.message : "Error al enviar el comprobante.");
+    }
+    setSinpeUploading(false);
   }
 
   const formatPrice = (price: number, currency: string) =>
@@ -408,13 +464,71 @@ export default function PlansPage() {
           </div>
         </div>
 
-        <p className="mt-4 text-xs text-muted-foreground">
-          Después de transferir, enviá el comprobante a{" "}
-          <a href="mailto:johnbigdeal@gmail.com" className="font-medium text-primary hover:underline">
-            johnbigdeal@gmail.com
-          </a>{" "}
-          para activar tu plan Pro.
-        </p>
+        {/* Estado / envío del comprobante */}
+        <div className="mt-5 border-t border-border/60 pt-4">
+          {sinpePayment?.status === "pending" ? (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+              <Clock className="h-4 w-4 shrink-0" />
+              Tu comprobante está <span className="font-semibold">en revisión</span>. Te activamos el Pro apenas el admin lo verifique.
+            </div>
+          ) : sinpePayment?.status === "approved" ? (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+              <Check className="h-4 w-4 shrink-0" />
+              Comprobante <span className="font-semibold">aprobado</span>. ¡Tu plan Pro está activo!
+            </div>
+          ) : (
+            <>
+              {sinpePayment?.status === "rejected" && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                  <X className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Tu último comprobante fue <span className="font-semibold">rechazado</span>.
+                    {sinpePayment.adminNote ? ` Motivo: ${sinpePayment.adminNote}.` : ""} Podés subir uno nuevo.
+                  </span>
+                </div>
+              )}
+              <p className="mb-2 text-sm font-medium">Ya pagaste? Subí tu comprobante para verificación</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <label className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setSinpeFile(e.target.files?.[0] ?? null)}
+                    className="block w-full cursor-pointer rounded-lg border bg-background text-sm file:mr-3 file:cursor-pointer file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-muted/70"
+                  />
+                </label>
+                <Button onClick={submitSinpeProof} disabled={!sinpeFile || sinpeUploading} className="shrink-0">
+                  {sinpeUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Enviar comprobante
+                    </>
+                  )}
+                </Button>
+              </div>
+              <input
+                type="text"
+                value={sinpeReference}
+                onChange={(e) => setSinpeReference(e.target.value)}
+                placeholder="Referencia o nota (opcional)"
+                className="mt-2 w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              />
+              {sinpeError && <p className="mt-2 text-sm text-destructive">{sinpeError}</p>}
+              <p className="mt-3 text-xs text-muted-foreground">
+                Aceptamos imagen o PDF. También podés escribirnos a{" "}
+                <a href="mailto:johnbigdeal@gmail.com" className="font-medium text-primary hover:underline">
+                  johnbigdeal@gmail.com
+                </a>
+                .
+              </p>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 rounded-lg border bg-muted/50 p-6">
