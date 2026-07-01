@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair, TrendingUp } from "lucide-react";
 import { reviewsInsight } from "@/lib/reviews-insight";
-import { isLatinoOwned } from "@/lib/business-attributes";
+import { getIdentityBadges } from "@/lib/business-attributes";
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -77,11 +77,11 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="truncate text-base font-semibold text-foreground">{business.name}</h3>
-                  {isLatinoOwned(business.rawJson) && (
-                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
-                      Negocio latino
+                  {getIdentityBadges(business.rawJson).map((b) => (
+                    <Badge key={b.key} variant="outline" className={`text-[10px] font-medium ${b.className}`}>
+                      {b.label}
                     </Badge>
-                  )}
+                  ))}
                 </div>
                 {business.category && (
                   <p className="text-xs text-muted-foreground">{business.category}</p>

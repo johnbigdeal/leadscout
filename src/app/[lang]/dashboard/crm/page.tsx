@@ -44,7 +44,7 @@ import { UpgradeModal } from "@/components/upgrade-modal";
 import { FreeBadge } from "@/components/plan-badges";
 import { RichText } from "@/components/trainings/RichText";
 import { fetchTrainings } from "@/lib/trainings/client";
-import { isLatinoOwned } from "@/lib/business-attributes";
+import { getIdentityBadges } from "@/lib/business-attributes";
 
 type Business = {
   id: string;
@@ -181,20 +181,24 @@ function SortableLeadCard({ lead, onClick, onQuickStage }: { lead: Lead; onClick
               </span>
             )}
           </div>
-          {(lead.category || isLatinoOwned(lead.business?.rawJson)) && (
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {lead.category && (
-                <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ backgroundColor: lead.category.color }}>
-                  {lead.category.name}
-                </span>
-              )}
-              {isLatinoOwned(lead.business?.rawJson) && (
-                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
-                  Negocio latino
-                </Badge>
-              )}
-            </div>
-          )}
+          {(() => {
+            const identityBadges = getIdentityBadges(lead.business?.rawJson);
+            if (!lead.category && identityBadges.length === 0) return null;
+            return (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {lead.category && (
+                  <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium text-white" style={{ backgroundColor: lead.category.color }}>
+                    {lead.category.name}
+                  </span>
+                )}
+                {identityBadges.map((b) => (
+                  <Badge key={b.key} variant="outline" className={`text-[10px] font-medium ${b.className}`}>
+                    {b.label}
+                  </Badge>
+                ))}
+              </div>
+            );
+          })()}
           {(lead.business?.category || lead.business?.rating) && (
             <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
               {lead.business?.category && <span>{lead.business.category}</span>}
