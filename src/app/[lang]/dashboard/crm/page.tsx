@@ -39,9 +39,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrency } from "@/lib/currency-context";
 import { CURRENCIES, formatMoney } from "@/lib/currencies";
 import { BusinessCard } from "@/components/business-card";
-import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign, Crown } from "lucide-react";
+import { GripVertical, Phone, MessageCircle, Globe, X, Trash2, User, Tag, Plus, ArrowUpRight, DollarSign, Crown, PhoneCall, Check, Loader2 } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { FreeBadge } from "@/components/plan-badges";
+import { RichText } from "@/components/trainings/RichText";
+import { fetchTrainings } from "@/lib/trainings/client";
 
 type Business = {
   id: string;
@@ -97,6 +99,33 @@ const STAGE_META: Record<string, { border: string; bg: string; dot: string; labe
 function getStageMeta(stage: string) {
   return STAGE_META[stage] || { border: "border-t-zinc-300", bg: "bg-zinc-50", dot: "bg-zinc-400", label: "text-zinc-600" };
 }
+
+/* Título de la lección de la Academia que reemplaza al guion por defecto. */
+const SCRIPT_LESSON_TITLE = "Scrip: Como llamar a un posible cliente";
+
+/* Normaliza para comparar títulos sin acentos ni mayúsculas. */
+function normalizeTitle(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+
+/* Guion por defecto (fallback) si la lección aún no existe en Entrenamientos. */
+const SALES_CALL_SCRIPT = `
+<h3>1. Apertura y presentación</h3>
+<p>"Hola, ¿hablo con <strong>[nombre]</strong>? Te habla <strong>[tu nombre]</strong> de <strong>[tu empresa]</strong>. ¿Te agarro en un buen momento para hablar un minuto?"</p>
+<h3>2. Motivo de la llamada</h3>
+<p>"Te contacto porque ayudamos a negocios como el tuyo a <strong>conseguir más clientes</strong> con presencia online. Vi tu negocio y creo que hay una oportunidad clara para vos."</p>
+<h3>3. Preguntas de calificación</h3>
+<ul>
+  <li>"¿Cómo estás consiguiendo clientes hoy?"</li>
+  <li>"¿Tenés página web o solo redes?"</li>
+  <li>"¿Qué te gustaría mejorar en los próximos meses?"</li>
+</ul>
+<h3>4. Manejo de objeción</h3>
+<p>Si dice <em>"no tengo tiempo / no me interesa"</em>: "Te entiendo, justamente por eso lo hacemos simple. ¿Te mando la info por WhatsApp y lo ves cuando puedas?"</p>
+<h3>5. Cierre y próximos pasos</h3>
+<p>"Perfecto. Agendemos <strong>15 minutos</strong> para mostrarte cómo quedaría. ¿Te viene mejor hoy a la tarde o mañana a la mañana?"</p>
+<blockquote>Al terminar la llamada, tomá una nota del resultado y mové el lead a la etapa correspondiente.</blockquote>
+`.trim();
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -290,6 +319,9 @@ function LeadDetailDialog({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#0369A1");
+  const [showScript, setShowScript] = useState(false);
+  const [scriptHtml, setScriptHtml] = useState<string | null>(null);
+  const [scriptLoading, setScriptLoading] = useState(false);
 
   const RECURRENCE_LABELS: Record<string, string> = {
     one_time: "Único",
@@ -302,6 +334,7 @@ function LeadDetailDialog({
     if (!lead) return;
     setNoteText("");
     setLeadServices([]);
+    setShowScript(false);
     (async () => {
       const headers = await getAuthHeaders();
       const [actRes, svcRes, allSvcRes] = await Promise.all([
@@ -396,6 +429,39 @@ function LeadDetailDialog({
     onTagsChange(newTags);
   }
 
+  /* Muestra/oculta el guion de llamada. Al abrirlo por primera vez, busca la
+     lección en la Academia; si no existe, usa el guion por defecto. */
+  async function toggleScript() {
+    if (showScript) {
+      setShowScript(false);
+      return;
+    }
+    setShowScript(true);
+    if (scriptHtml !== null) return; // ya cargado
+    setScriptLoading(true);
+    try {
+      const data = await fetchTrainings();
+      const target = normalizeTitle(SCRIPT_LESSON_TITLE);
+      const lessons = data.sections.flatMap((s) => s.lessons);
+      const match = lessons.find((l) => {
+        const t = normalizeTitle(l.title);
+        return (t === target || t.includes("como llamar")) && l.content;
+      });
+      setScriptHtml(match?.content || SALES_CALL_SCRIPT);
+    } catch {
+      setScriptHtml(SALES_CALL_SCRIPT);
+    } finally {
+      setScriptLoading(false);
+    }
+  }
+
+  /* "Terminar": mueve el lead a Contactado y colapsa el guion. */
+  function finishScriptCall() {
+    if (lead!.stage !== "contacted") onStageChange("contacted");
+    setShowScript(false);
+    toast.success("Lead movido a Contactado");
+  }
+
   async function removeTag(tag: string) {
     onTagsChange((lead!.tags || []).filter((t) => t !== tag));
   }
@@ -415,21 +481,52 @@ function LeadDetailDialog({
                   <DialogDescription>{t("createdAt")}: {formatDate(lead.createdAt)}</DialogDescription>
                 </div>
               </div>
-              {onCreateWebsite && lead?.id && (
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
+                  variant={showScript ? "default" : "outline"}
+                  onClick={toggleScript}
                 >
-                  <Globe className="mr-1.5 h-4 w-4" />
-                  Crear Website
+                  <PhoneCall className="mr-1.5 h-4 w-4" />
+                  {showScript ? "Ocultar script" : "Mostrar script"}
                 </Button>
-              )}
+                {onCreateWebsite && lead?.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
+                  >
+                    <Globe className="mr-1.5 h-4 w-4" />
+                    Crear Website
+                  </Button>
+                )}
+              </div>
             </div>
           </DialogHeader>
 
           <div className="flex-1 space-y-5 overflow-y-auto min-h-0 pr-1">
+            {showScript && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
+                  <PhoneCall className="h-4 w-4" />
+                  Script: Cómo llamar a un posible cliente
+                </div>
+                {scriptLoading ? (
+                  <div className="flex items-center gap-2 py-6 text-sm text-zinc-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando script…
+                  </div>
+                ) : (
+                  <RichText html={scriptHtml} className="prose prose-sm max-w-none text-zinc-700" />
+                )}
+                <div className="mt-4 flex justify-end border-t border-primary/15 pt-3">
+                  <Button size="sm" onClick={finishScriptCall} disabled={lead.stage === "contacted"}>
+                    <Check className="mr-1.5 h-4 w-4" />
+                    {lead.stage === "contacted" ? "Ya está en Contactado" : "Terminar y mover a Contactado"}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div>
               <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 <ArrowUpRight className="h-3 w-3" />
