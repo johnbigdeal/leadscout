@@ -624,8 +624,10 @@ export function generateHTML(
   @media(prefers-reduced-motion:reduce){.stars .star.on{animation:none}}
 
   /* booking / reservas */
-  .booking .booking-lede{color:var(--muted);max-width:52ch;margin:-18px 0 40px;font-size:1.05rem}
-  .booking-form{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;max-width:760px;
+  .booking .wrap{text-align:center}
+  .booking .booking-lede{color:var(--muted);max-width:52ch;margin:-18px auto 40px;font-size:1.05rem}
+  .booking-form{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;max-width:760px;text-align:left;
+    margin-left:auto;margin-right:auto;
     background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:32px}
   .booking-field{display:flex;flex-direction:column;gap:9px;min-width:0}
   .booking-field--full{grid-column:1 / -1}
@@ -693,12 +695,15 @@ export function generateHTML(
       `var pr=date.split('-');var dstr=pr.length===3?pr[2]+'/'+pr[1]+'/'+pr[0]:date;` +
       `var L=[M.intro,'',M.date+': '+dstr,M.time+': '+time,M.service+': '+svc,M.name+': '+nm.trim()];` +
       `if(note.trim()){L.push(M.note+': '+note.trim());}` +
-      `clearMsg();window.open('https://wa.me/'+num+'?text='+encodeURIComponent(L.join('\\n')),'_blank');});` +
+      `clearMsg();var url='https://wa.me/'+num+'?text='+encodeURIComponent(L.join('\\n'));` +
+      `var w=window.open(url,'_blank');` +
+      `if(!w){var a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();}});` +
       `})();`
     : "";
 
   const js =
     "document.addEventListener('DOMContentLoaded',function(){" +
+    bookingJS +
     "var nav=document.querySelector('.nav');" +
     "var bg=document.querySelector('.hero-bg');" +
     "function onScroll(){var y=window.pageYOffset||document.documentElement.scrollTop;" +
@@ -718,7 +723,6 @@ export function generateHTML(
     "var t=document.querySelector(this.getAttribute('href'));" +
     "if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}" +
     "});});" +
-    bookingJS +
     "});";
 
   /* Self-contained badge: the mark is loaded from leadscout.lat so it renders
