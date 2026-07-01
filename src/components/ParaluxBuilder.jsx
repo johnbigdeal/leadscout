@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Sparkles, Globe, Monitor, Smartphone, MessageCircle, Plus,
-  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search, Star
+  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search, Star, CalendarClock
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
 import { toast } from "sonner";
@@ -152,6 +152,18 @@ const DEFAULT = {
   whatsappMessage: "Hola Estudio Lumen, vi su sitio y me gustaría comprar.",
   whatsappPosition: "right",
   whatsappSize: "normal",
+  bookingEnabled: false,
+  bookingTitle: "Reservá tu turno",
+  bookingSubtext: "Elegí día, horario y servicio. Te confirmamos por WhatsApp.",
+  bookingButtonText: "Reservar por WhatsApp",
+  bookingServices: [
+    { name: "Consulta inicial", duration: 30, price: "" },
+    { name: "Sesión de trabajo", duration: 60, price: "" },
+  ],
+  bookingDays: [1, 2, 3, 4, 5],
+  bookingHoursStart: "09:00",
+  bookingHoursEnd: "18:00",
+  bookingInterval: 30,
   email: "hola@estudiolumen.com",
   phone: "+52 123 456 7890",
   location: "Ciudad de México",
@@ -276,7 +288,13 @@ const TABS = [
   { id: "resenas", label: "Reseñas", icon: Star },
   { id: "estilo", label: "Estilo", icon: Palette },
   { id: "contacto", label: "Contacto", icon: Phone },
+  { id: "reservas", label: "Reservas", icon: CalendarClock },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+];
+
+const WEEKDAYS = [
+  { n: 1, label: "Lun" }, { n: 2, label: "Mar" }, { n: 3, label: "Mié" },
+  { n: 4, label: "Jue" }, { n: 5, label: "Vie" }, { n: 6, label: "Sáb" }, { n: 0, label: "Dom" },
 ];
 
 const SOCIAL_TYPES = [
@@ -346,6 +364,16 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
   const updSocial = (i, k, v) =>
     set("socialLinks", d.socialLinks.map((s, idx) => (idx === i ? { ...s, [k]: v } : s)));
   const delSocial = (i) => set("socialLinks", d.socialLinks.filter((_, idx) => idx !== i));
+
+  /* booking services helpers */
+  const addBookingService = () => set("bookingServices", [...(d.bookingServices || []), { name: "", duration: 30, price: "" }]);
+  const updBookingService = (i, k, v) =>
+    set("bookingServices", (d.bookingServices || []).map((s, idx) => (idx === i ? { ...s, [k]: v } : s)));
+  const delBookingService = (i) => set("bookingServices", (d.bookingServices || []).filter((_, idx) => idx !== i));
+  const toggleBookingDay = (n) => {
+    const cur = Array.isArray(d.bookingDays) ? d.bookingDays : [];
+    set("bookingDays", cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]);
+  };
 
   const frameSize =
     internalDevice === "desktop"
@@ -630,6 +658,121 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                   ))}
                   <button className="px-add" onClick={addSocial}><Plus size={15} /> Agregar red social</button>
                   <p className="px-hint">Los botones usan el color de acento de tu marca (editable en la pestaña Estilo).</p>
+                </>
+              )}
+
+              {tab === "reservas" && (
+                <>
+                  <div className="px-field">
+                    <span className="px-label">Calendario de reservas</span>
+                    <div className="px-toggle">
+                      <span style={{ fontSize: ".88rem" }}>{d.bookingEnabled ? "Activado" : "Desactivado"}</span>
+                      <button
+                        type="button"
+                        className={`px-switch ${d.bookingEnabled ? "on" : ""}`}
+                        aria-pressed={!!d.bookingEnabled}
+                        aria-label="Activar calendario de reservas"
+                        onClick={() => set("bookingEnabled", !d.bookingEnabled)}
+                        style={{ border: "none", padding: 0 }}
+                      ><i /></button>
+                    </div>
+                    <p className="px-hint">Muestra una sección donde el visitante elige fecha, horario y servicio. Al enviar, se abre WhatsApp con la reserva ya escrita.</p>
+                  </div>
+
+                  {d.bookingEnabled && (
+                    <>
+                      {!(d.whatsappNumber || "").replace(/\D/g, "") && (
+                        <p className="px-hint" style={{ color: "#ff7a7a" }} role="alert">
+                          Configurá el número en la pestaña WhatsApp: las reservas se envían a ese número.
+                        </p>
+                      )}
+
+                      <Field label="Título de la sección" v={d.bookingTitle} on={(v) => set("bookingTitle", v)} ph="Reservá tu turno" />
+                      <Field label="Descripción" v={d.bookingSubtext} on={(v) => set("bookingSubtext", v)} area ph="Elegí día, horario y servicio. Te confirmamos por WhatsApp." />
+                      <Field label="Texto del botón" v={d.bookingButtonText} on={(v) => set("bookingButtonText", v)} ph="Reservar por WhatsApp" />
+
+                      <div className="px-sub">
+                        Servicios <span style={{ color: "var(--lo)", fontWeight: 400, fontSize: ".72rem" }}>{(d.bookingServices || []).length}</span>
+                      </div>
+                      {(d.bookingServices || []).map((s, i) => (
+                        <div className="px-rep" key={i}>
+                          <button className="del" onClick={() => delBookingService(i)}><Trash2 size={14} /></button>
+                          <Field label={`Servicio ${i + 1}`} v={s.name} on={(v) => updBookingService(i, "name", v)} ph="Consulta inicial" />
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <div className="px-field" style={{ flex: 1, marginBottom: 0 }}>
+                              <span className="px-label">Duración (min)</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="5"
+                                className="px-input"
+                                value={s.duration ?? ""}
+                                aria-label={`Duración del servicio ${i + 1}`}
+                                placeholder="30"
+                                onChange={(e) => updBookingService(i, "duration", e.target.value === "" ? "" : Number(e.target.value))}
+                              />
+                            </div>
+                            <div className="px-field" style={{ flex: 1, marginBottom: 0 }}>
+                              <span className="px-label">Precio</span>
+                              <input
+                                className="px-input"
+                                value={s.price || ""}
+                                aria-label={`Precio del servicio ${i + 1}`}
+                                placeholder="$500"
+                                onChange={(e) => updBookingService(i, "price", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <button className="px-add" onClick={addBookingService}><Plus size={15} /> Agregar servicio</button>
+
+                      <div className="px-sub" style={{ marginTop: 22 }}>Días disponibles</div>
+                      <div className="px-presets" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+                        {WEEKDAYS.map((w) => {
+                          const on = (d.bookingDays || []).includes(w.n);
+                          return (
+                            <button
+                              type="button"
+                              key={w.n}
+                              className={`px-preset ${on ? "on" : ""}`}
+                              aria-pressed={on}
+                              onClick={() => toggleBookingDay(w.n)}
+                              style={{ font: "inherit", padding: "10px 6px" }}
+                            >
+                              <span>{w.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="px-sub" style={{ marginTop: 22 }}>Horario de atención</div>
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <div className="px-field" style={{ flex: 1 }}>
+                          <span className="px-label">Desde</span>
+                          <input type="time" className="px-input" value={d.bookingHoursStart || "09:00"} aria-label="Hora de inicio" onChange={(e) => set("bookingHoursStart", e.target.value)} />
+                        </div>
+                        <div className="px-field" style={{ flex: 1 }}>
+                          <span className="px-label">Hasta</span>
+                          <input type="time" className="px-input" value={d.bookingHoursEnd || "18:00"} aria-label="Hora de fin" onChange={(e) => set("bookingHoursEnd", e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="px-field">
+                        <span className="px-label">Intervalo entre turnos</span>
+                        <select
+                          className="px-input"
+                          value={d.bookingInterval || 30}
+                          aria-label="Intervalo entre turnos"
+                          onChange={(e) => set("bookingInterval", Number(e.target.value))}
+                        >
+                          {[15, 30, 45, 60, 90, 120].map((n) => (
+                            <option key={n} value={n}>{n} minutos</option>
+                          ))}
+                        </select>
+                        <p className="px-hint">Con estos valores se generan las franjas horarias que puede elegir el visitante.</p>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 

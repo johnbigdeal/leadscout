@@ -68,16 +68,34 @@ const telLink = (num: string) => {
   return n ? `tel:${n}` : "#";
 };
 
+/* Genera franjas horarias "HH:MM" entre start y end cada `interval` minutos. */
+const buildTimeSlots = (start = "09:00", end = "18:00", interval = 30): string[] => {
+  const toMin = (t: string) => {
+    const [h, m] = String(t).split(":").map((x) => parseInt(x, 10));
+    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+  };
+  const step = Math.max(5, interval || 30);
+  const s = toMin(start);
+  const e = toMin(end);
+  const out: string[] = [];
+  for (let t = s; t <= e && out.length < 96; t += step) {
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+  return out;
+};
+
 /* ---------- fixed UI strings (i18n) ---------- */
 const STRINGS = {
   es: {
     htmlLang: "es",
     navInicio: "Inicio", navNosotros: "Nosotros", navServicios: "Servicios",
-    navProyectos: "Proyectos", navContacto: "Contacto",
+    navProyectos: "Proyectos", navContacto: "Contacto", navReservar: "Reservar",
     navCta: "Cotizar",
     ebQuienes: "Quiénes somos", ebHacemos: "Lo que hacemos",
     ebTrabajo: "Trabajo seleccionado", ebResenas: "Reseñas en Google", ebSeguinos: "Seguinos",
-    ebEmpezamos: "¿Empezamos?",
+    ebEmpezamos: "¿Empezamos?", ebReservar: "Reservá tu turno",
     servicios: "Servicios", proyectos: "Proyectos", projectAlt: "Proyecto",
     reviewsTitleFallback: "Lo que dicen nuestros clientes",
     reviewsCta: "Dejá tu reseña en Google",
@@ -87,15 +105,33 @@ const STRINGS = {
     ctaTitleFallback: "Cuéntanos sobre tu proyecto",
     ctaSubtextFallback: "Respondemos rápido. Escríbenos y agendemos una conversación.",
     contactoFallback: "Contáctanos", enviarCorreo: "Enviar correo",
+    /* ─ reservas ─ */
+    bookingTitleFallback: "Reservá tu turno",
+    bookingSubtextFallback: "Elegí día, horario y servicio. Te confirmamos por WhatsApp.",
+    bookingBtnFallback: "Reservar por WhatsApp",
+    bookingLabelDate: "Fecha", bookingLabelTime: "Horario",
+    bookingLabelService: "Servicio", bookingLabelName: "Tu nombre",
+    bookingLabelNote: "Nota (opcional)",
+    bookingServicePh: "Elegí un servicio",
+    bookingNamePh: "Nombre y apellido",
+    bookingNotePh: "Contanos algo más sobre tu reserva…",
+    bookingNoSlots: "No hay horarios configurados.",
+    bookingClosedDay: "Ese día no atendemos. Elegí otra fecha.",
+    bookingMissing: "Completá fecha, horario, servicio y tu nombre.",
+    bookingNoNumber: "Este sitio aún no tiene WhatsApp configurado.",
+    bookingMsgIntro: "¡Hola! Quiero reservar un turno 👇",
+    bookingMsgDate: "Fecha", bookingMsgTime: "Horario",
+    bookingMsgService: "Servicio", bookingMsgName: "Nombre", bookingMsgNote: "Nota",
+    weekdays: ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
   },
   en: {
     htmlLang: "en",
     navInicio: "Home", navNosotros: "About", navServicios: "Services",
-    navProyectos: "Projects", navContacto: "Contact",
+    navProyectos: "Projects", navContacto: "Contact", navReservar: "Book",
     navCta: "Get a quote",
     ebQuienes: "About us", ebHacemos: "What we do",
     ebTrabajo: "Selected work", ebResenas: "Google reviews", ebSeguinos: "Follow us",
-    ebEmpezamos: "Let's start",
+    ebEmpezamos: "Let's start", ebReservar: "Book your slot",
     servicios: "Services", proyectos: "Projects", projectAlt: "Project",
     reviewsTitleFallback: "What our clients say",
     reviewsCta: "Leave your review on Google",
@@ -105,6 +141,24 @@ const STRINGS = {
     ctaTitleFallback: "Tell us about your project",
     ctaSubtextFallback: "We reply fast. Send us a message and let's talk.",
     contactoFallback: "Contact us", enviarCorreo: "Send email",
+    /* ─ booking ─ */
+    bookingTitleFallback: "Book your slot",
+    bookingSubtextFallback: "Pick a day, time and service. We'll confirm on WhatsApp.",
+    bookingBtnFallback: "Book on WhatsApp",
+    bookingLabelDate: "Date", bookingLabelTime: "Time",
+    bookingLabelService: "Service", bookingLabelName: "Your name",
+    bookingLabelNote: "Note (optional)",
+    bookingServicePh: "Choose a service",
+    bookingNamePh: "Full name",
+    bookingNotePh: "Tell us more about your booking…",
+    bookingNoSlots: "No time slots configured.",
+    bookingClosedDay: "We're closed that day. Pick another date.",
+    bookingMissing: "Please fill in date, time, service and your name.",
+    bookingNoNumber: "This site has no WhatsApp configured yet.",
+    bookingMsgIntro: "Hi! I'd like to book a slot 👇",
+    bookingMsgDate: "Date", bookingMsgTime: "Time",
+    bookingMsgService: "Service", bookingMsgName: "Name", bookingMsgNote: "Note",
+    weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
   },
 } as const;
 
@@ -347,6 +401,65 @@ export function generateHTML(
       </section>`
     : "";
 
+  /* ─── Booking / reservas section ─── */
+  const bookingServices = (d.bookingServices || []).filter((s: any) => s && s.name);
+  const bookingDays: number[] = Array.isArray(d.bookingDays) ? d.bookingDays : [1, 2, 3, 4, 5];
+  const bookingSlots = buildTimeSlots(d.bookingHoursStart, d.bookingHoursEnd, d.bookingInterval);
+  const bookingNumber = onlyDigits(d.whatsappNumber || "");
+  const bookingOn = d.bookingEnabled === true && bookingServices.length > 0;
+  const bookingNavLink = bookingOn ? `<a href="#reservar">${S.navReservar}</a>` : "";
+  const bookingHTML = bookingOn
+    ? `<section id="reservar" class="section booking">
+        <div class="wrap">
+          <p class="eyebrow reveal">${S.ebReservar}</p>
+          <h2 class="reveal">${esc(d.bookingTitle || S.bookingTitleFallback)}</h2>
+          <p class="booking-lede reveal" style="transition-delay:80ms">${esc(d.bookingSubtext || S.bookingSubtextFallback)}</p>
+          <form class="booking-form reveal" style="transition-delay:140ms" novalidate>
+            <div class="booking-field">
+              <label for="bk-date">${S.bookingLabelDate}</label>
+              <input type="date" id="bk-date" name="date" required>
+            </div>
+            <div class="booking-field">
+              <label for="bk-service">${S.bookingLabelService}</label>
+              <select id="bk-service" name="service" required>
+                <option value="" disabled selected>${esc(S.bookingServicePh)}</option>
+                ${bookingServices
+                  .map((s: any) => {
+                    const meta = [s.duration ? `${s.duration} min` : "", s.price ? String(s.price) : ""]
+                      .filter(Boolean)
+                      .join(" · ");
+                    const label = meta ? `${s.name} — ${meta}` : s.name;
+                    return `<option value="${esc(s.name)}" data-label="${esc(label)}">${esc(label)}</option>`;
+                  })
+                  .join("")}
+              </select>
+            </div>
+            <div class="booking-field booking-field--full">
+              <label>${S.bookingLabelTime}</label>
+              ${bookingSlots.length
+                ? `<div class="booking-slots" role="radiogroup" aria-label="${S.bookingLabelTime}">
+                    ${bookingSlots.map((t) => `<button type="button" class="slot" data-time="${t}" role="radio" aria-checked="false">${t}</button>`).join("")}
+                  </div>
+                  <input type="hidden" id="bk-time" name="time" value="">`
+                : `<p class="booking-note-msg">${S.bookingNoSlots}</p>`}
+            </div>
+            <div class="booking-field">
+              <label for="bk-name">${S.bookingLabelName}</label>
+              <input type="text" id="bk-name" name="name" placeholder="${esc(S.bookingNamePh)}" required>
+            </div>
+            <div class="booking-field booking-field--full">
+              <label for="bk-note">${S.bookingLabelNote}</label>
+              <textarea id="bk-note" name="note" rows="3" placeholder="${esc(S.bookingNotePh)}"></textarea>
+            </div>
+            <div class="booking-field booking-field--full">
+              <p class="booking-msg" id="bk-msg" role="alert"></p>
+              <button type="submit" class="btn booking-submit">${esc(d.bookingButtonText || S.bookingBtnFallback)} →</button>
+            </div>
+          </form>
+        </div>
+      </section>`
+    : "";
+
   const css = `
   :root{
     --bg:${c.bg};--surface:${c.surface};--text:${c.text};--muted:${c.muted};
@@ -509,7 +622,80 @@ export function generateHTML(
   .social-btn svg{width:18px;height:18px;fill:currentColor}
   @media(max-width:820px){.reviews-grid{grid-template-columns:1fr}}
   @media(prefers-reduced-motion:reduce){.stars .star.on{animation:none}}
+
+  /* booking / reservas */
+  .booking .booking-lede{color:var(--muted);max-width:52ch;margin:-18px 0 40px;font-size:1.05rem}
+  .booking-form{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;max-width:760px;
+    background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:32px}
+  .booking-field{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .booking-field--full{grid-column:1 / -1}
+  .booking-field label{font-size:.74rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .booking-field input,.booking-field select,.booking-field textarea{width:100%;background:var(--bg);
+    color:var(--text);border:1px solid var(--line);border-radius:11px;padding:13px 14px;font-size:.95rem;
+    font-family:inherit;transition:border-color .18s,box-shadow .18s;resize:vertical}
+  .booking-field textarea{min-height:84px;line-height:1.5}
+  .booking-field input:focus,.booking-field select:focus,.booking-field textarea:focus{outline:none;
+    border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .booking-slots{display:flex;flex-wrap:wrap;gap:9px}
+  .slot{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:100px;
+    padding:9px 16px;font-size:.9rem;font-weight:500;font-family:inherit;cursor:pointer;transition:.18s}
+  .slot:hover{border-color:var(--accent)}
+  .slot.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .booking-msg{min-height:1.2em;font-size:.9rem;color:#e0483b;margin-bottom:2px}
+  .booking-msg.ok{color:var(--accent)}
+  .booking-note-msg{color:var(--muted);font-size:.9rem}
+  .booking-submit{margin-top:4px}
+  @media(max-width:640px){.booking-form{grid-template-columns:1fr;padding:24px}}
   `;
+
+  /* Booking client logic — armado del mensaje y apertura de wa.me.
+     Los valores dinámicos se inyectan con JSON.stringify para escapar comillas.
+     Se usa \\n para emitir un salto de línea literal dentro del string JS. */
+  const bookingJS = bookingOn
+    ? `(function(){` +
+      `var f=document.querySelector('.booking-form');if(!f){return;}` +
+      `var days=${JSON.stringify(bookingDays)};` +
+      `var num=${JSON.stringify(bookingNumber)};` +
+      `var M=${JSON.stringify({
+        closed: S.bookingClosedDay,
+        missing: S.bookingMissing,
+        noNum: S.bookingNoNumber,
+        intro: S.bookingMsgIntro,
+        date: S.bookingMsgDate,
+        time: S.bookingMsgTime,
+        service: S.bookingMsgService,
+        name: S.bookingMsgName,
+        note: S.bookingMsgNote,
+      })};` +
+      `var dateEl=document.getElementById('bk-date');` +
+      `var timeEl=document.getElementById('bk-time');` +
+      `var msgEl=document.getElementById('bk-msg');` +
+      `function clearMsg(){if(msgEl){msgEl.classList.remove('ok');msgEl.textContent='';}}` +
+      `function err(t){if(msgEl){msgEl.classList.remove('ok');msgEl.textContent=t;}}` +
+      `if(dateEl){var t=new Date();dateEl.min=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);}` +
+      `var slots=f.querySelectorAll('.slot');` +
+      `slots.forEach(function(s){s.addEventListener('click',function(){` +
+      `slots.forEach(function(x){x.classList.remove('on');x.setAttribute('aria-checked','false');});` +
+      `s.classList.add('on');s.setAttribute('aria-checked','true');` +
+      `if(timeEl){timeEl.value=s.getAttribute('data-time');}clearMsg();});});` +
+      `if(dateEl){dateEl.addEventListener('change',function(){` +
+      `if(!dateEl.value){return;}var p=dateEl.value.split('-');` +
+      `var dd=new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));` +
+      `if(days.indexOf(dd.getDay())===-1){err(M.closed);dateEl.value='';}else{clearMsg();}});}` +
+      `f.addEventListener('submit',function(e){e.preventDefault();` +
+      `var date=dateEl?dateEl.value:'';var time=timeEl?timeEl.value:'';` +
+      `var svcEl=f.querySelector('[name=service]');var svc='';` +
+      `if(svcEl){var so=svcEl.options[svcEl.selectedIndex];svc=(so&&so.getAttribute('data-label'))||svcEl.value||'';}` +
+      `var nm=(f.querySelector('[name=name]')||{}).value||'';` +
+      `var note=(f.querySelector('[name=note]')||{}).value||'';` +
+      `if(!date||!time||!svc||!nm.trim()){err(M.missing);return;}` +
+      `if(!num){err(M.noNum);return;}` +
+      `var pr=date.split('-');var dstr=pr.length===3?pr[2]+'/'+pr[1]+'/'+pr[0]:date;` +
+      `var L=[M.intro,'',M.date+': '+dstr,M.time+': '+time,M.service+': '+svc,M.name+': '+nm.trim()];` +
+      `if(note.trim()){L.push(M.note+': '+note.trim());}` +
+      `clearMsg();window.open('https://wa.me/'+num+'?text='+encodeURIComponent(L.join('\\n')),'_blank');});` +
+      `})();`
+    : "";
 
   const js =
     "document.addEventListener('DOMContentLoaded',function(){" +
@@ -531,7 +717,9 @@ export function generateHTML(
     "e.preventDefault();" +
     "var t=document.querySelector(this.getAttribute('href'));" +
     "if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}" +
-    "});});});";
+    "});});" +
+    bookingJS +
+    "});";
 
   /* Self-contained badge: the mark is loaded from leadscout.lat so it renders
      on custom domains too. Uses the light knockout mark on dark sites. */
@@ -565,7 +753,7 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
 <body>
 <header class="nav">
   <span class="brand">${esc(d.logoText || d.businessName || "MARCA")}</span>
-  <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
+  <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${bookingNavLink}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
 </header>
 
 <section id="inicio" class="hero">
@@ -577,7 +765,7 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
     <h1 class="reveal" style="transition-delay:80ms">${esc(d.heroHeadline || "")}</h1>
     <p class="lede reveal" style="transition-delay:160ms">${esc(d.heroSubtext || "")}</p>
     <div class="reveal" style="transition-delay:240ms">
-      ${hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.ctaText || S.heroCtaWa)} →</a>` : `<a class="btn" href="#contacto">${esc(d.ctaText || S.contactoFallback)} →</a>`}
+      ${bookingOn ? `<a class="btn" href="#reservar">${esc(d.ctaText || S.bookingBtnFallback)} →</a>` : hasWA ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${esc(d.ctaText || S.heroCtaWa)} →</a>` : `<a class="btn" href="#contacto">${esc(d.ctaText || S.contactoFallback)} →</a>`}
     </div>
   </div>
   <div class="scroll-cue"></div>
@@ -600,6 +788,7 @@ ${stmtHTML}
 ${servicesHTML}
 ${galleryHTML}
 ${reviewsHTML}
+${bookingHTML}
 ${socialHTML}
 
 <section id="contacto" class="cta">
