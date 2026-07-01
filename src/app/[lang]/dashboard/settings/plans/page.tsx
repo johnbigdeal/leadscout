@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Loader2, Zap, Globe, Search, LayoutDashboard, Crown } from "lucide-react";
+import { Check, X, Loader2, Zap, Globe, Search, LayoutDashboard, Crown, Smartphone, Copy } from "lucide-react";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -45,6 +45,33 @@ export default function PlansPage() {
   const [subscribing, setSubscribing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [sinpeCopied, setSinpeCopied] = useState(false);
+  const [inCostaRica, setInCostaRica] = useState(false);
+
+  const SINPE_NUMBER = "64593374";
+  const SINPE_NAME = "JONATHAN RODRIGUEZ";
+  const SINPE_AMOUNT = "10,000 colones";
+
+  // Detecta Costa Rica por zona horaria para resaltar el pago local (sin llamadas de red).
+  useEffect(() => {
+    try {
+      if (Intl.DateTimeFormat().resolvedOptions().timeZone === "America/Costa_Rica") {
+        setInCostaRica(true);
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  async function copySinpeNumber() {
+    try {
+      await navigator.clipboard.writeText(SINPE_NUMBER);
+      setSinpeCopied(true);
+      setTimeout(() => setSinpeCopied(false), 2000);
+    } catch {
+      /* noop */
+    }
+  }
 
   const formatPrice = (price: number, currency: string) =>
     new Intl.NumberFormat("es", {
@@ -334,7 +361,63 @@ export default function PlansPage() {
         })}
       </div>
 
-      <div className="mt-12 rounded-lg border bg-muted/50 p-6">
+      {/* Pago local — Costa Rica (SINPE Móvil) */}
+      <div
+        className={`mt-12 rounded-xl border p-6 ${
+          inCostaRica ? "border-primary/40 bg-primary/5" : "border bg-muted/40"
+        }`}
+      >
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <Smartphone className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="flex items-center gap-2 font-semibold">
+                ¿Estás en Costa Rica? 🇨🇷
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pagá tu plan Pro en colones por <span className="font-medium text-foreground">SINPE Móvil</span>:{" "}
+                <span className="font-semibold text-foreground">{SINPE_AMOUNT} por mes</span>.
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 rounded-lg border bg-background p-4 sm:min-w-[240px]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              SINPE Móvil
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-mono text-lg font-bold tracking-wide">{SINPE_NUMBER}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={copySinpeNumber}
+                aria-label="Copiar número SINPE"
+                title="Copiar número"
+              >
+                {sinpeCopied ? (
+                  <Check className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">{SINPE_NAME}</p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-xs text-muted-foreground">
+          Después de transferir, enviá el comprobante a{" "}
+          <a href="mailto:johnbigdeal@gmail.com" className="font-medium text-primary hover:underline">
+            johnbigdeal@gmail.com
+          </a>{" "}
+          para activar tu plan Pro.
+        </p>
+      </div>
+
+      <div className="mt-8 rounded-lg border bg-muted/50 p-6">
         <h3 className="font-semibold mb-2">¿Necesitás ayuda?</h3>
         <p className="text-sm text-muted-foreground">
           Si tenés dudas sobre los planes o necesitás una solución enterprise,
