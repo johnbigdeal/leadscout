@@ -489,10 +489,13 @@ export function generateHTML(
   .nav-links a{font-size:.86rem;color:rgba(255,255,255,.82);font-weight:500;transition:.2s}
   .nav.scrolled .nav-links a{color:var(--muted)}
   .nav-links a:hover{color:#fff}.nav.scrolled .nav-links a:hover{color:var(--accent)}
-  .nav-cta{position:relative;padding:9px 18px;border:1px solid var(--accent);border-radius:100px;color:var(--accent);font-size:.82rem;font-weight:600;overflow:hidden;transition:color .25s,transform .25s;animation:ctaBob 2.6s ease-in-out infinite}
+  .nav-cta{position:relative;padding:9px 18px;border:1px solid rgba(255,255,255,.4);border-radius:100px;color:#fff;font-size:.82rem;font-weight:600;overflow:hidden;transition:color .25s,background .25s,border-color .25s,transform .25s;animation:ctaBob 2.6s ease-in-out infinite}
   .nav-cta::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:linear-gradient(110deg,transparent 20%,color-mix(in srgb,var(--accent) 32%,transparent) 50%,transparent 80%);background-size:220% 100%;animation:ctaShine 2.6s linear infinite}
-  .nav-cta:hover{color:#fff;background:var(--accent);transform:translateY(-2px) scale(1.04);box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 45%,transparent)}
+  .nav-cta:hover{color:#fff;background:var(--accent);border-color:var(--accent);transform:translateY(-2px) scale(1.04);box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 45%,transparent)}
   .nav.scrolled .nav-cta{border-color:var(--accent);color:var(--accent)}
+  /* En estado scrolled el color base es accent; al hover debe volver blanco
+     (sube especificidad para ganarle a .nav.scrolled .nav-cta). */
+  .nav.scrolled .nav-cta:hover{color:#fff}
   @keyframes ctaBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
   @keyframes ctaShine{0%{background-position:120% 0}100%{background-position:-120% 0}}
   .nav-actions{display:flex;align-items:center;gap:18px}
