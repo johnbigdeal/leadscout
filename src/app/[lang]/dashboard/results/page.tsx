@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink } from "lucide-react";
+import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink, Loader2 } from "lucide-react";
 import { BusinessCard, type Business } from "@/components/business-card";
 import { matchPipeline } from "@/lib/pipeline-match";
 import { toast } from "sonner";
@@ -108,6 +108,8 @@ export default function ResultsPage() {
   const [batchIds, setBatchIds] = useState<string[]>([]);
 
   const initialLoadRef = useRef(false);
+  const creatingWebsiteRef = useRef(false);
+  const [creatingWebsiteId, setCreatingWebsiteId] = useState<string | null>(null);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -173,16 +175,28 @@ export default function ResultsPage() {
   }, []);
 
   async function createWebsiteFromBiz(businessId: string, businessName: string) {
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    const res = await fetch("/api/websites", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ name: `Website ${businessName}`, businessId }),
-    });
-    if (res.ok) {
-      const website = await res.json();
-      router.push(`/dashboard/builder/${website.id}`);
+    /* Guard síncrono contra doble-submit (evita sitios duplicados). */
+    if (creatingWebsiteRef.current) return;
+    creatingWebsiteRef.current = true;
+    setCreatingWebsiteId(businessId);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/websites", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: `Website ${businessName}`, businessId }),
+      });
+      if (res.ok) {
+        const website = await res.json();
+        router.push(`/dashboard/builder/${website.id}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
+      }
+    } finally {
+      creatingWebsiteRef.current = false;
+      setCreatingWebsiteId(null);
     }
   }
 
@@ -686,9 +700,14 @@ export default function ResultsPage() {
                                 </Badge>
                               )}
                               <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-500 hover:text-zinc-900"
+                                disabled={creatingWebsiteId === biz.id}
                                 onClick={(e) => { e.stopPropagation(); createWebsiteFromBiz(biz.id, biz.name); }}>
-                                <Globe className="mr-1 h-3 w-3" />
-                                Website
+                                {creatingWebsiteId === biz.id ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Globe className="mr-1 h-3 w-3" />
+                                )}
+                                {creatingWebsiteId === biz.id ? "Creando…" : "Website"}
                               </Button>
                             </div>
                           </TableCell>

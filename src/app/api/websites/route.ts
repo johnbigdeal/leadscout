@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { websites, memberships, businesses, leads, socialProfiles, pipelines, leadCategories } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { translateCategory } from "@/lib/paralux/category-translations";
 import { generateCopySafe } from "@/lib/paralux/generate-copy";
 
@@ -67,18 +68,6 @@ export async function POST(request: Request) {
   const { name, leadId, businessId } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  /* One website per lead: if one already exists for this lead (draft or
-     published), return it instead of creating a duplicate. The CRM "Crear
-     Website" button then opens the existing draft. */
-  if (leadId) {
-    const [existing] = await db
-      .select()
-      .from(websites)
-      .where(and(eq(websites.leadId, leadId), eq(websites.orgId, ctx.orgId)))
-      .limit(1);
-    if (existing) return NextResponse.json(existing);
-  }
-
   let initialData: Record<string, any> = {};
   let resolvedBusinessId = businessId;
 
@@ -91,6 +80,26 @@ export async function POST(request: Request) {
       .limit(1);
     if (lead) resolvedBusinessId = lead.businessId;
   }
+
+  /* Un sitio por lead o por negocio: si ya existe uno (borrador o publicado)
+     para este lead O este negocio, se devuelve en vez de crear un duplicado.
+     Cubre el botón del CRM (manda leadId) y el de resultados (solo businessId). */
+  async function findExisting() {
+    const conds = [
+      leadId ? eq(websites.leadId, leadId) : null,
+      resolvedBusinessId ? eq(websites.businessId, resolvedBusinessId) : null,
+    ].filter(Boolean) as any[];
+    if (conds.length === 0) return null;
+    const [existing] = await db
+      .select()
+      .from(websites)
+      .where(and(eq(websites.orgId, ctx.orgId), conds.length === 1 ? conds[0] : or(...conds)))
+      .limit(1);
+    return existing ?? null;
+  }
+
+  const pre = await findExisting();
+  if (pre) return NextResponse.json(pre);
 
   /* Pre-fill with business data if available */
   let leadCategoryName: string | null = null;
@@ -136,10 +145,22 @@ export async function POST(request: Request) {
         : biz.name
         ? `${biz.name} business`
         : "business";
-      const images = await searchUnsplashImages(searchQuery, 8);
 
       const categoryEs = leadCategoryName || (biz.category ? translateCategory(biz.category) : "");
       const phoneDigits = biz.phone ? biz.phone.replace(/\D/g, "") : "";
+
+      /* Unsplash e IA en paralelo (no dependen entre sí) con tope de tiempo
+         para acotar la espera; si la IA no responde a tiempo, queda la base. */
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+
+      const [images, copy] = await Promise.all([
+        searchUnsplashImages(searchQuery, 8),
+        withTimeout(
+          generateCopySafe({ name: biz.name || "", what: categoryEs || biz.name || "negocio", language: "es" }),
+          15000,
+        ),
+      ]);
 
       /* Redes sociales reales del lead (sin los placeholders del DEFAULT). */
       const socialLinks = [
@@ -211,15 +232,8 @@ export async function POST(request: Request) {
         accent: "#3B3BF5",
       };
 
-      /* Auto-relleno con IA: genera copy de marketing tailored al lead y
-         reemplaza el texto base. Best-effort — si la IA falla, queda la base
-         derivada del lead (nunca contenido dummy). */
-      const copy = await generateCopySafe({
-        name: biz.name || "",
-        what: categoryEs || biz.name || "negocio",
-        language: "es",
-      });
-
+      /* Auto-relleno con IA (ya resuelto arriba en paralelo). Best-effort — si
+         la IA falla o expira, queda la base derivada del lead (nunca dummy). */
       if (copy) {
         const pick = (v: unknown, fallback: any) =>
           typeof v === "string" && v.trim() ? v.trim() : fallback;
@@ -249,16 +263,28 @@ export async function POST(request: Request) {
     }
   }
 
-  const [website] = await db
-    .insert(websites)
-    .values({
-      orgId: ctx.orgId,
-      leadId: leadId || null,
-      businessId: resolvedBusinessId || null,
-      name: name.trim(),
-      data: initialData,
-    })
-    .returning();
+  /* Re-check + insert atómico bajo advisory lock por objetivo (lead/negocio):
+     si dos requests paralelas generaron a la vez, la segunda encuentra el
+     sitio recién creado y lo devuelve en vez de duplicar. */
+  const lockKey = `web:${ctx.orgId}:${leadId || resolvedBusinessId || name.trim()}`;
+  const website = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+
+    const existing = await findExisting();
+    if (existing) return existing;
+
+    const [created] = await tx
+      .insert(websites)
+      .values({
+        orgId: ctx.orgId,
+        leadId: leadId || null,
+        businessId: resolvedBusinessId || null,
+        name: name.trim(),
+        data: initialData,
+      })
+      .returning();
+    return created;
+  });
 
   return NextResponse.json(website);
 }

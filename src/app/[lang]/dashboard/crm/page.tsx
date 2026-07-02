@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import {
@@ -299,7 +299,7 @@ type LeadService = {
 };
 
 function LeadDetailDialog({
-  lead, open, onOpenChange, onStageChange, onTagsChange, onAddNote, onDelete, onServiceChange, categories, onCategoryChange, pipelines, activePipelineId, onPipelineChange, onCreateWebsite, plan, onShowUpgrade,
+  lead, open, onOpenChange, onStageChange, onTagsChange, onAddNote, onDelete, onServiceChange, categories, onCategoryChange, pipelines, activePipelineId, onPipelineChange, onCreateWebsite, creatingWebsite, plan, onShowUpgrade,
 }: {
   lead: Lead | null;
   open: boolean;
@@ -315,6 +315,7 @@ function LeadDetailDialog({
   activePipelineId: string | null | undefined;
   onPipelineChange: (pipelineId: string | null) => void;
   onCreateWebsite?: (leadId: string, businessId?: string) => void;
+  creatingWebsite?: boolean;
   plan: string;
   onShowUpgrade: (feature: string) => void;
 }) {
@@ -507,10 +508,15 @@ function LeadDetailDialog({
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={creatingWebsite}
                     onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
                   >
-                    <Globe className="mr-1.5 h-4 w-4" />
-                    Crear Website
+                    {creatingWebsite ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Globe className="mr-1.5 h-4 w-4" />
+                    )}
+                    {creatingWebsite ? "Creando…" : "Crear Website"}
                   </Button>
                 )}
               </div>
@@ -845,6 +851,8 @@ export default function CrmPage() {
   const [openDetail, setOpenDetail] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [addingLead, setAddingLead] = useState(false);
+  const [creatingWebsite, setCreatingWebsite] = useState(false);
+  const creatingWebsiteRef = useRef(false);
   const [overColumn, setOverColumn] = useState<string | null>(null);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [activePipeline, setActivePipeline] = useState<Pipeline | null>(null);
@@ -1106,23 +1114,32 @@ export default function CrmPage() {
   }
 
   async function handleCreateWebsite(leadId: string, businessId?: string) {
-    const headers = await getAuthHeaders();
-    headers["Content-Type"] = "application/json";
-    const res = await fetch("/api/websites", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        name: `Website ${selectedLead?.business?.name || "Nuevo"}`,
-        leadId,
-        businessId,
-      }),
-    });
-    if (res.ok) {
-      const website = await res.json();
-      router.push(`/dashboard/builder/${website.id}`);
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
+    /* Guard síncrono: evita que clics rápidos disparen varios POST (duplicados). */
+    if (creatingWebsiteRef.current) return;
+    creatingWebsiteRef.current = true;
+    setCreatingWebsite(true);
+    try {
+      const headers = await getAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      const res = await fetch("/api/websites", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: `Website ${selectedLead?.business?.name || "Nuevo"}`,
+          leadId,
+          businessId,
+        }),
+      });
+      if (res.ok) {
+        const website = await res.json();
+        router.push(`/dashboard/builder/${website.id}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
+      }
+    } finally {
+      creatingWebsiteRef.current = false;
+      setCreatingWebsite(false);
     }
   }
 
@@ -1244,6 +1261,7 @@ export default function CrmPage() {
         activePipelineId={activePipeline?.id}
         onPipelineChange={handlePipelineChange}
         onCreateWebsite={handleCreateWebsite}
+        creatingWebsite={creatingWebsite}
         plan={plan}
         onShowUpgrade={(feature) => { setUpgradeFeature(feature); setShowUpgradeModal(true); }}
       />
