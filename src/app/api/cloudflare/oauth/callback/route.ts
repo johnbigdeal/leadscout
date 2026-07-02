@@ -70,6 +70,9 @@ export async function GET(request: Request) {
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
     const refreshToken = tokenData.refresh_token;
+    const tokenExpiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000)
+      : null;
 
     if (!accessToken) {
       return NextResponse.redirect(
@@ -99,6 +102,7 @@ export async function GET(request: Request) {
           refreshToken: refreshToken || null,
           authType: "oauth",
           accountId: accountId || existing[0].accountId,
+          tokenExpiresAt,
         })
         .where(eq(cloudflareAccounts.id, existing[0].id));
     } else {
@@ -108,6 +112,7 @@ export async function GET(request: Request) {
         apiToken: accessToken,
         refreshToken: refreshToken || null,
         authType: "oauth",
+        tokenExpiresAt,
       });
     }
 

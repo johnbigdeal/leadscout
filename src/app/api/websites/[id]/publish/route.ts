@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { websites, memberships, customDomains, cloudflareAccounts, availableDomains, subscriptions } from "@/lib/db/schema";
+import { websites, memberships, customDomains, availableDomains, subscriptions } from "@/lib/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { getPlanLimits } from "@/lib/plans";
+import { getValidCfToken } from "@/lib/integrations/cloudflare";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -151,17 +152,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   /* ─── CUSTOM DOMAIN (Pro only + user's Cloudflare) ─── */
   if (customDomain) {
-    /* Get Cloudflare credentials */
-    const cfRows = await db
-      .select({ apiToken: cloudflareAccounts.apiToken })
-      .from(cloudflareAccounts)
-      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
-      .limit(1);
-
-    if (cfRows.length === 0) {
+    /* Get Cloudflare credentials (renueva el token OAuth si expiró) */
+    const cfToken = await getValidCfToken(ctx.orgId);
+    if (!cfToken) {
       return NextResponse.json({ error: "Cloudflare not connected. Go to Settings → Domains first." }, { status: 400 });
     }
-    const cfToken = cfRows[0].apiToken;
 
     /* Check plan - custom domains are Pro only. Super admin bypass. */
     if (!ctx.isSuperAdmin) {
@@ -323,18 +318,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      system env → org dueña del dominio (para globales del admin) → org que publica. */
   let subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || null;
   if (!subdomainCfToken && domainOwnerOrgId) {
-    subdomainCfToken = (await db
-      .select({ apiToken: cloudflareAccounts.apiToken })
-      .from(cloudflareAccounts)
-      .where(eq(cloudflareAccounts.orgId, domainOwnerOrgId))
-      .limit(1))[0]?.apiToken ?? null;
+    subdomainCfToken = await getValidCfToken(domainOwnerOrgId);
   }
   if (!subdomainCfToken) {
-    subdomainCfToken = (await db
-      .select({ apiToken: cloudflareAccounts.apiToken })
-      .from(cloudflareAccounts)
-      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
-      .limit(1))[0]?.apiToken ?? null;
+    subdomainCfToken = await getValidCfToken(ctx.orgId);
   }
   if (!subdomainCfToken) {
     return NextResponse.json({ error: "No se pudo conectar con Cloudflare para publicar. Contacta al administrador." }, { status: 500 });

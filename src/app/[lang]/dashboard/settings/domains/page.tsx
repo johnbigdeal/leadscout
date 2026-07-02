@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Globe, CheckCircle2, Loader2, Link2, Crown, Zap, Users, Server } from "lucide-react";
+import { Plus, Trash2, Globe, CheckCircle2, Loader2, Link2, Crown, Zap, Users, Server, LogIn } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { UpgradeButton } from "@/components/plan-badges";
 import { toast } from "sonner";
@@ -73,6 +73,26 @@ export default function DomainsSettings() {
   const [manualZoneId, setManualZoneId] = useState("");
   const [manualGlobal, setManualGlobal] = useState(true);
   const [manualAccess, setManualAccess] = useState("both");
+  const [showManualToken, setShowManualToken] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  async function handleOAuthConnect() {
+    setOauthLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/cloudflare/oauth/start", { headers });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || "No se pudo iniciar la conexión con Cloudflare.");
+        setOauthLoading(false);
+      }
+    } catch {
+      toast.error("No se pudo iniciar la conexión con Cloudflare.");
+      setOauthLoading(false);
+    }
+  }
 
   async function fetchPlan() {
     const headers = await getAuthHeaders();
@@ -389,6 +409,33 @@ export default function DomainsSettings() {
           </div>
         ) : (
           <div className="mt-4 space-y-5">
+            {/* Método primario: login por navegador (OAuth) */}
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-sm text-zinc-600">
+                Conectá tu cuenta iniciando sesión en Cloudflare. Te vamos a pedir permiso para leer tus zonas y gestionar DNS.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button onClick={handleOAuthConnect} disabled={oauthLoading}>
+                  {oauthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                  Conectar con Cloudflare
+                </Button>
+                {connected && showReconnect && (
+                  <Button variant="outline" onClick={() => { setShowReconnect(false); setApiToken(""); }}>
+                    Cancelar
+                  </Button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowManualToken((v) => !v)}
+                  className="text-xs font-medium text-zinc-500 underline hover:text-zinc-700"
+                >
+                  {showManualToken ? "Ocultar" : "Conectar con API Token (avanzado)"}
+                </button>
+              </div>
+            </div>
+
+            {!showManualToken ? null : (
+            <>
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
               <p className="font-semibold mb-1">Cómo obtener tus credenciales:</p>
               <ol className="list-decimal list-inside space-y-1 text-amber-700">
@@ -416,14 +463,11 @@ export default function DomainsSettings() {
             <div className="flex gap-2">
               <Button onClick={handleConnect} disabled={connecting || !apiToken || !accountId}>
                 {connecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
-                {connected ? "Actualizar credenciales" : "Conectar cuenta"}
+                {connected ? "Actualizar credenciales" : "Conectar con token"}
               </Button>
-              {connected && showReconnect && (
-                <Button variant="outline" onClick={() => { setShowReconnect(false); setApiToken(""); }}>
-                  Cancelar
-                </Button>
-              )}
             </div>
+            </>
+            )}
           </div>
         )}
       </section>

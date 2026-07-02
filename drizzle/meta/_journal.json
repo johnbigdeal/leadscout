@@ -155,6 +155,13 @@
       "when": 1782956812561,
       "tag": "0021_stale_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782959108817,
+      "tag": "0022_jittery_frog_thor",
+      "breakpoints": true
     }
   ]
 }

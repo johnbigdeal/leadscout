@@ -302,6 +302,8 @@ export const cloudflareAccounts = pgTable("cloudflare_accounts", {
   refreshToken: text("refresh_token"),
   authType: text("auth_type").notNull().default("manual"),
   email: text("email"),
+  /* Expiración del access token OAuth (para renovarlo con el refresh_token). */
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgUnique: uniqueIndex().on(t.orgId),

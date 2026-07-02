@@ -1,0 +1,1 @@
+ALTER TABLE "cloudflare_accounts" ADD COLUMN "token_expires_at" timestamp with time zone;

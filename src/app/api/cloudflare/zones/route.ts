@@ -1,24 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cloudflareAccounts, memberships } from "@/lib/db/schema";
+import { cloudflareAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { cfFetch } from "@/lib/integrations/cloudflare";
 
 export const dynamic = "force-dynamic";
-
-async function cfRequest(token: string, path: string, opts?: RequestInit) {
-  const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
-    ...opts,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...opts?.headers,
-    },
-  });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.errors?.[0]?.message || "Cloudflare API error");
-  return data.result;
-}
 
 /* GET /api/cloudflare/zones */
 export async function GET(request: Request) {
@@ -27,7 +14,7 @@ export async function GET(request: Request) {
   const ctx = result.ctx;
 
   const rows = await db
-    .select({ apiToken: cloudflareAccounts.apiToken, accountId: cloudflareAccounts.accountId })
+    .select({ id: cloudflareAccounts.id })
     .from(cloudflareAccounts)
     .where(eq(cloudflareAccounts.orgId, ctx.orgId))
     .limit(1);
@@ -35,7 +22,7 @@ export async function GET(request: Request) {
   if (rows.length === 0) return NextResponse.json({ error: "Cloudflare not connected" }, { status: 400 });
 
   try {
-    const zones = await cfRequest(rows[0].apiToken, "/zones?per_page=50");
+    const zones = await cfFetch(ctx.orgId, "/zones?per_page=50");
     return NextResponse.json(
       zones.map((z: any) => ({
         id: z.id,

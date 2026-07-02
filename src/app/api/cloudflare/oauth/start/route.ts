@@ -27,6 +27,13 @@ export async function GET(request: Request) {
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
+  /* Scopes que mapean a permisos de API token: leer zonas + editar DNS, más
+     offline_access para obtener refresh_token. Deben estar habilitados en el
+     OAuth client de Cloudflare. Configurable por env por si Cloudflare ajusta
+     los identificadores. */
+  const scope = process.env.CLOUDFLARE_OAUTH_SCOPE
+    || "zone:read dns_records:edit account:read offline_access";
+  url.searchParams.set("scope", scope);
 
   /* Save state and orgId in cookies so we can verify them on callback */
   const response = NextResponse.json({ url: url.toString() });
