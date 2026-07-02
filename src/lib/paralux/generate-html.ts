@@ -385,16 +385,23 @@ export function generateHTML(
     youtube: "YouTube", linkedin: "LinkedIn", x: "X", website: S.websiteLabel,
   };
   /* Normaliza entradas parciales (usuario/handle/dominio suelto) a URLs válidas,
-     para que "escribí mi Instagram" funcione sin pegar el link completo. */
+     para que "escribí mi Instagram" funcione sin pegar el link completo. Devuelve
+     "" para valores basura ("#", protocolo suelto, handle vacío) así no se
+     renderizan botones rotos. */
   const normalizeSocialUrl = (type: string, raw: string): string => {
     const val = (raw || "").trim();
-    if (!val) return "";
-    if (/^https?:\/\//i.test(val)) return val;
+    /* Descarta placeholders/basura: vacío, solo "#", "/", "@", "-", etc. */
+    if (!val || !/[a-z0-9]/i.test(val)) return "";
+    if (/^https?:\/\//i.test(val)) {
+      /* URL completa pero sin nada después del protocolo → basura. */
+      return /^https?:\/\/[a-z0-9]/i.test(val) ? val : "";
+    }
     if (type === "whatsapp") {
       const digits = onlyDigits(val);
       return digits ? `https://wa.me/${digits}` : "";
     }
-    const handle = val.replace(/^@/, "").replace(/^\/+/, "");
+    const handle = val.replace(/^@/, "").replace(/^\/+/, "").replace(/^#+/, "").trim();
+    if (!handle || !/[a-z0-9]/i.test(handle)) return "";
     switch (type) {
       case "instagram": return `https://instagram.com/${handle}`;
       case "tiktok": return `https://tiktok.com/@${handle}`;
@@ -406,16 +413,11 @@ export function generateHTML(
     }
   };
 
-  /* Lista unificada: sección de botones (socialLinks) + campos sueltos de la
-     pestaña Contacto (instagram/facebook/website). Editar en cualquier lado aparece. */
-  const rawSocials: Array<{ type: string; url: string }> = [
-    ...((d.socialLinks || []) as Array<{ type: string; url: string }>),
-    { type: "instagram", url: d.instagram || "" },
-    { type: "facebook", url: d.facebook || "" },
-    { type: "website", url: d.website || "" },
-  ];
+  /* La sección de botones se maneja desde d.socialLinks. Los campos sueltos de la
+     pestaña Contacto (instagram/facebook/website) siguen en el footer. Normaliza y
+     descarta URLs basura; dedup por URL final. */
   const seenSocial = new Set<string>();
-  const socialLinks = rawSocials
+  const socialLinks = ((d.socialLinks || []) as Array<{ type: string; url: string }>)
     .map((s) => ({ type: s.type, url: normalizeSocialUrl(s.type, s.url) }))
     .filter((s) => {
       if (!s.url) return false;

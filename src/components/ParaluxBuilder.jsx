@@ -654,15 +654,15 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                         </select>
                       </div>
                       <Field label="Enlace (URL) o usuario" v={s.url} on={(v) => updSocial(i, "url", v)} ph="tu_usuario o https://..." />
-                      {!s.url?.trim() && (
+                      {!/[a-z0-9]/i.test((s.url || "").replace(/^https?:\/\//i, "").replace(/[@#/]/g, "")) && (
                         <p className="px-hint" style={{ color: "#e11d48", marginTop: 4 }}>
-                          Falta el enlace — esta red no se mostrará en el sitio hasta que lo completes.
+                          Falta el enlace real — poné tu usuario o link. Con “#” o vacío esta red no se muestra.
                         </p>
                       )}
                     </div>
                   ))}
                   <button className="px-add" onClick={addSocial}><Plus size={15} /> Agregar red social</button>
-                  <p className="px-hint">Podés pegar el link completo o solo tu usuario (ej. <b>@miempresa</b>) y lo completamos. Los enlaces del pie (arriba) también aparecen aquí. Los botones usan el color de acento de tu marca.</p>
+                  <p className="px-hint">Estos botones son los de la sección “Seguinos en redes”. Podés pegar el link completo o solo tu usuario (ej. <b>@miempresa</b>) y lo completamos. Los botones usan el color de acento de tu marca.</p>
                 </>
               )}
 
