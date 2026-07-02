@@ -113,8 +113,27 @@ interface AdminSearch {
   businessCount: number;
 }
 
+interface InviteCode {
+  id: string;
+  code: string;
+  ownerEmail: string | null;
+  label: string | null;
+  maxUses: number | null;
+  usesCount: number;
+  enabled: boolean;
+  createdAt: string;
+}
+
+interface InviteRequest {
+  id: string;
+  userId: string;
+  email: string | null;
+  status: string;
+  createdAt: string;
+}
+
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "sinpe" | "trials" | "searches" | "referrals">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "sinpe" | "invites" | "trials" | "searches" | "referrals">("overview");
   const [referrals, setReferrals] = useState<{ referrerEmail: string; referredEmail: string; referredAt: string }[]>([]);
   const [topReferrers, setTopReferrers] = useState<{ email: string; count: number }[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -122,6 +141,10 @@ export default function AdminDashboardPage() {
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
   const [sinpePayments, setSinpePayments] = useState<SinpePayment[]>([]);
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [inviteRequests, setInviteRequests] = useState<InviteRequest[]>([]);
+  const [newCodeName, setNewCodeName] = useState("");
+  const [newCodeInfinite, setNewCodeInfinite] = useState(false);
   const [trials, setTrials] = useState<TrialData[]>([]);
   const [searches, setSearches] = useState<AdminSearch[]>([]);
   const [selectedSearches, setSelectedSearches] = useState<Set<string>>(new Set());
@@ -320,9 +343,81 @@ export default function AdminDashboardPage() {
     fetchOrgs();
   }
 
+  async function fetchInviteCodes() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/invite-codes", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setInviteCodes(data.codes);
+      setInviteRequests(data.requests);
+    }
+  }
+
+  async function createInviteCode() {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/admin/invite-codes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: newCodeName.trim() || undefined, infinite: newCodeInfinite }),
+    });
+    if (!res.ok) {
+      toast.error("No se pudo crear el código.");
+      return;
+    }
+    toast.success("Código creado");
+    setNewCodeName("");
+    setNewCodeInfinite(false);
+    fetchInviteCodes();
+  }
+
+  async function patchInviteCode(id: string, body: Record<string, unknown>, okMsg?: string) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/admin/invite-codes?id=${id}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "No se pudo actualizar el código.");
+      return;
+    }
+    if (okMsg) toast.success(okMsg);
+    fetchInviteCodes();
+  }
+
+  async function deleteInviteCode(id: string) {
+    if (!confirm("¿Borrar este código? Dejará de servir para registrarse.")) return;
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/admin/invite-codes?id=${id}`, { method: "DELETE", headers });
+    if (!res.ok) { toast.error("No se pudo borrar."); return; }
+    toast.success("Código borrado");
+    fetchInviteCodes();
+  }
+
+  async function renameInviteCode(id: string, current: string) {
+    const next = prompt("Nuevo nombre del código (se mantiene el prefijo leadscout_):", current);
+    if (!next || next.trim() === current) return;
+    patchInviteCode(id, { code: next.trim() }, "Código renombrado");
+  }
+
+  async function handleInviteRequest(id: string, action: "approve" | "reject") {
+    let note: string | null = null;
+    if (action === "reject") note = prompt("Motivo del rechazo (opcional):");
+    else if (!confirm("¿Aprobar y recargar +10 usos al solicitante?")) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/admin/invite-codes/requests", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id, action, note }),
+    });
+    if (!res.ok) { toast.error("No se pudo procesar la solicitud."); return; }
+    toast.success(action === "approve" ? "Aprobado (+10 usos)" : "Solicitud rechazada");
+    fetchInviteCodes();
+  }
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchInviteCodes(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -366,6 +461,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "orgs"} onClick={() => setTab("orgs")} label={`Organizaciones (${orgs.length})`} />
         <TabButton active={tab === "subscriptions"} onClick={() => setTab("subscriptions")} label={`Suscripciones (${subscriptions.length})`} />
         <TabButton active={tab === "sinpe"} onClick={() => setTab("sinpe")} label={`SINPE (${sinpePayments.filter((p) => p.status === "pending").length})`} />
+        <TabButton active={tab === "invites"} onClick={() => setTab("invites")} label={`Invitaciones (${inviteRequests.length})`} />
         <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
         <TabButton active={tab === "searches"} onClick={() => setTab("searches")} label={`Búsquedas (${searches.length})`} />
         <TabButton active={tab === "referrals"} onClick={() => setTab("referrals")} label={`Referidos (${referrals.length})`} />
@@ -849,6 +945,106 @@ export default function AdminDashboardPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Invitaciones Tab */}
+      {tab === "invites" && (
+        <div className="space-y-8">
+          {/* Solicitudes pendientes */}
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">Solicitudes de códigos ({inviteRequests.length})</h2>
+            {inviteRequests.length === 0 ? (
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-500">
+                No hay solicitudes pendientes
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {inviteRequests.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-4">
+                    <div>
+                      <p className="text-sm font-medium">{r.email || r.userId.slice(0, 8)}</p>
+                      <p className="text-xs text-zinc-500">{new Date(r.createdAt).toLocaleDateString("es")}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50" onClick={() => handleInviteRequest(r.id, "reject")}>
+                        <XCircle className="mr-1 h-3 w-3" /> Rechazar
+                      </Button>
+                      <Button size="sm" onClick={() => handleInviteRequest(r.id, "approve")}>
+                        <CheckCircle className="mr-1 h-3 w-3" /> Aprobar (+10)
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Crear código */}
+          <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold">Crear código</h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center rounded-lg border border-zinc-200 bg-zinc-50 text-sm">
+                <span className="px-2 py-2 font-mono text-zinc-400">leadscout_</span>
+                <input
+                  value={newCodeName}
+                  onChange={(e) => setNewCodeName(e.target.value)}
+                  placeholder="nombre-personalizado (opcional)"
+                  className="rounded-r-lg bg-white px-2 py-2 text-sm focus:outline-none"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={newCodeInfinite} onChange={(e) => setNewCodeInfinite(e.target.checked)} />
+                Ilimitado
+              </label>
+              <Button size="sm" onClick={createInviteCode}>Crear código</Button>
+            </div>
+          </div>
+
+          {/* Códigos */}
+          <div className="overflow-x-auto">
+            <h3 className="mb-3 text-sm font-semibold">Códigos ({inviteCodes.length})</h3>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="pb-3 pl-4">Código</th>
+                  <th className="pb-3">Dueño</th>
+                  <th className="pb-3">Usos</th>
+                  <th className="pb-3">Estado</th>
+                  <th className="pb-3 pr-4">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inviteCodes.length === 0 && (
+                  <tr><td colSpan={5} className="py-12 text-center text-sm text-zinc-400">No hay códigos.</td></tr>
+                )}
+                {inviteCodes.map((c) => (
+                  <tr key={c.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="py-3 pl-4 font-mono text-xs">{c.code}</td>
+                    <td className="py-3 text-zinc-600">{c.ownerEmail || "—"}</td>
+                    <td className="py-3">{c.maxUses === null ? "∞" : `${c.usesCount}/${c.maxUses}`}</td>
+                    <td className="py-3">
+                      {c.enabled ? (
+                        <Badge className="bg-emerald-100 text-emerald-700">Activo</Badge>
+                      ) : (
+                        <Badge variant="secondary">Deshabilitado</Badge>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-wrap gap-1">
+                        <button onClick={() => renameInviteCode(c.id, c.code.replace(/^leadscout_/, ""))} className="rounded px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100">Renombrar</button>
+                        {c.maxUses !== null && (
+                          <button onClick={() => patchInviteCode(c.id, { addUses: 10 }, "+10 usos")} className="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10">+10</button>
+                        )}
+                        <button onClick={() => patchInviteCode(c.id, { enabled: !c.enabled })} className="rounded px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50">{c.enabled ? "Deshabilitar" : "Habilitar"}</button>
+                        <button onClick={() => deleteInviteCode(c.id)} className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { organizations, memberships, subscriptions, pipelines, profiles, subscribers } from "@/lib/db/schema";
+import { organizations, memberships, subscriptions, pipelines, profiles, subscribers, inviteCodes } from "@/lib/db/schema";
 import { rateLimit } from "@/lib/rate-limit";
 import { generateUniqueReferralCode } from "@/lib/referrals";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function POST(request: Request) {
   // Rate limit by IP - 5 requests per minute
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { userId, orgName, referralCode } = await request.json();
+  const { userId, orgName, referralCode, inviteCode } = await request.json();
   if (!userId || !orgName) {
     return NextResponse.json({ error: "Missing userId or orgName" }, { status: 400 });
   }
@@ -69,48 +69,83 @@ export async function POST(request: Request) {
   const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   /* Todo en una transacción: si algo falla, se revierte completo. Evita cuentas
-     a medias (perfil sin org/membership) y organizaciones huérfanas. */
-  const orgId = await db.transaction(async (tx) => {
-    const [org] = await tx
-      .insert(organizations)
-      .values({ name: orgName })
-      .returning();
+     a medias (perfil sin org/membership) y organizaciones huérfanas.
+     El registro requiere un código de invitación válido (salvo super admin);
+     se bloquea la fila del código y se consume un uso de forma atómica. */
+  let orgId: string;
+  try {
+    orgId = await db.transaction(async (tx) => {
+      let codeOwnerId: string | null = null;
 
-    await tx
-      .insert(profiles)
-      .values({
-        id: userId,
-        email: user.email!,
-        role: isSuperAdmin ? "super_admin" : "user",
-        referralCode: newReferralCode,
-        referredBy,
-      })
-      .onConflictDoNothing();
+      if (!isSuperAdmin) {
+        const normalized = typeof inviteCode === "string" ? inviteCode.trim().toLowerCase() : "";
+        if (!normalized) throw new Error("INVITE_REQUIRED");
+        const [code] = await tx
+          .select()
+          .from(inviteCodes)
+          .where(eq(inviteCodes.code, normalized))
+          .for("update")
+          .limit(1);
+        if (!code || !code.enabled || (code.maxUses !== null && code.usesCount >= code.maxUses)) {
+          throw new Error("INVITE_INVALID");
+        }
+        await tx
+          .update(inviteCodes)
+          .set({ usesCount: sql`${inviteCodes.usesCount} + 1` })
+          .where(eq(inviteCodes.id, code.id));
+        codeOwnerId = code.ownerId;
+      }
 
-    await tx.insert(memberships).values({
-      orgId: org.id,
-      userId,
-      role: isSuperAdmin ? "superadmin" : "owner",
-      /* Self-serve: las cuentas nuevas entran directo (sin aprobación manual). */
-      approved: true,
+      const [org] = await tx
+        .insert(organizations)
+        .values({ name: orgName })
+        .returning();
+
+      await tx
+        .insert(profiles)
+        .values({
+          id: userId,
+          email: user.email!,
+          role: isSuperAdmin ? "super_admin" : "user",
+          referralCode: newReferralCode,
+          referredBy: codeOwnerId ?? referredBy,
+        })
+        .onConflictDoNothing();
+
+      await tx.insert(memberships).values({
+        orgId: org.id,
+        userId,
+        role: isSuperAdmin ? "superadmin" : "owner",
+        /* Código válido ⇒ aprobado automáticamente. */
+        approved: true,
+      });
+
+      await tx.insert(subscriptions).values({
+        orgId: org.id,
+        plan: "free",
+        searchQuota: 50,
+        trialEndsAt,
+      });
+
+      await tx.insert(pipelines).values({
+        orgId: org.id,
+        name: "Ventas",
+        category: "General",
+        stages: ["new", "contacted", "qualified", "won", "lost"],
+      });
+
+      return org.id;
     });
-
-    await tx.insert(subscriptions).values({
-      orgId: org.id,
-      plan: "free",
-      searchQuota: 50,
-      trialEndsAt,
-    });
-
-    await tx.insert(pipelines).values({
-      orgId: org.id,
-      name: "Ventas",
-      category: "General",
-      stages: ["new", "contacted", "qualified", "won", "lost"],
-    });
-
-    return org.id;
-  });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "INVITE_REQUIRED") {
+      return NextResponse.json({ error: "Necesitás un código de invitación para registrarte." }, { status: 400 });
+    }
+    if (msg === "INVITE_INVALID") {
+      return NextResponse.json({ error: "El código de invitación no es válido, está deshabilitado o alcanzó su límite de usos." }, { status: 400 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ orgId, approved: true });
 }

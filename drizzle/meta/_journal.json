@@ -162,6 +162,13 @@
       "when": 1782959108817,
       "tag": "0022_jittery_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782963787571,
+      "tag": "0023_opposite_dragon_man",
+      "breakpoints": true
     }
   ]
 }

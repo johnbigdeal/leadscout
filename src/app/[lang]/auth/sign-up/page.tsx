@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
@@ -19,6 +19,7 @@ const signUpSchema = z.object({
     .min(8, "La contraseña debe tener al menos 8 caracteres")
     .max(128, "La contraseña es demasiado larga"),
   orgName: z.string().min(1, "El nombre de la organización es requerido").max(100, "Máximo 100 caracteres"),
+  inviteCode: z.string().min(1, "El código de invitación es requerido"),
 });
 
 export default function SignUpPage() {
@@ -29,6 +30,13 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+
+  /* Prefill del código desde el link de invitación (?code=leadscout_...). */
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("code");
+    if (c) setInviteCode(c.trim());
+  }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [authError, setAuthError] = useState("");
@@ -36,7 +44,7 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState(false);
 
   function validate(): boolean {
-    const result = signUpSchema.safeParse({ email, password, orgName });
+    const result = signUpSchema.safeParse({ email, password, orgName, inviteCode });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       result.error.issues.forEach((err) => {
@@ -56,6 +64,27 @@ export default function SignUpPage() {
     if (!validate()) return;
 
     setLoading(true);
+
+    /* Validar el código de invitación antes de crear la cuenta. */
+    const normalizedCode = inviteCode.trim().toLowerCase();
+    try {
+      const vr = await fetch("/api/invite-codes/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: normalizedCode }),
+      });
+      const vd = await vr.json().catch(() => ({ valid: false }));
+      if (!vd.valid) {
+        setLoading(false);
+        setAuthError("El código de invitación no es válido o ya alcanzó su límite de usos.");
+        return;
+      }
+    } catch {
+      setLoading(false);
+      setAuthError("No se pudo validar el código. Intentá de nuevo.");
+      return;
+    }
+
     const supabase = createClient();
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -83,13 +112,14 @@ export default function SignUpPage() {
     const res = await fetch("/api/onboarding", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: data.user.id, orgName, referralCode }),
+      body: JSON.stringify({ userId: data.user.id, orgName, referralCode, inviteCode: normalizedCode }),
     });
 
     setLoading(false);
 
     if (!res.ok) {
-      setAuthError("Error al crear la organización. Por favor contacta soporte.");
+      const err = await res.json().catch(() => ({}));
+      setAuthError(err.error || "Error al crear la organización. Por favor contacta soporte.");
       return;
     }
 
@@ -159,6 +189,26 @@ export default function SignUpPage() {
                 className={errors.orgName ? "border-red-500" : ""}
               />
               {errors.orgName && <p className="text-xs text-red-600">{errors.orgName}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">Código de invitación</Label>
+              <Input
+                id="inviteCode"
+                name="inviteCode"
+                value={inviteCode}
+                onChange={(e) => {
+                  setInviteCode(e.target.value);
+                  if (errors.inviteCode) setErrors((prev) => ({ ...prev, inviteCode: "" }));
+                }}
+                placeholder="leadscout_..."
+                className={errors.inviteCode ? "border-red-500" : ""}
+              />
+              {errors.inviteCode ? (
+                <p className="text-xs text-red-600">{errors.inviteCode}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Necesitás un código válido para registrarte.</p>
+              )}
             </div>
 
             <div className="space-y-2">

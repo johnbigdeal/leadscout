@@ -72,6 +72,32 @@ export function sinpeProofSubmittedHtml(opts: {
 </html>`;
 }
 
+export function inviteCodeRequestHtml(opts: { email: string; orgName: string }): string {
+  const { email, orgName } = opts;
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: system-ui, sans-serif; padding: 32px; max-width: 600px; margin: 0 auto;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <h1 style="font-size: 22px; color: #1a1a2e;">Solicitud de más códigos de invitación</h1>
+  </div>
+  <p style="font-size: 16px; color: #555;">Un usuario agotó sus invitaciones y pide una recarga:</p>
+  <table style="width: 100%; font-size: 15px; color: #333; border-collapse: collapse; margin: 16px 0;">
+    <tr><td style="padding: 6px 0; color: #888;">Usuario</td><td style="padding: 6px 0; font-weight: 600;">${email}</td></tr>
+    <tr><td style="padding: 6px 0; color: #888;">Organización</td><td style="padding: 6px 0;">${orgName}</td></tr>
+  </table>
+  <div style="text-align: center; margin: 24px 0;">
+    <a href="https://leadscout.lat/dashboard/admin"
+       style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+      Revisar y aprobar
+    </a>
+  </div>
+  <p style="font-size: 14px; color: #999;">Panel de Administración → pestaña Invitaciones</p>
+</body>
+</html>`;
+}
+
 export function trialReminder3DaysHtml(name: string, daysLeft: number): string {
   return `
 <!DOCTYPE html>

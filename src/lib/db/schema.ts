@@ -436,3 +436,32 @@ export const sinpePayments = pgTable("sinpe_payments", {
   orgIdx: index().on(t.orgId),
   statusIdx: index().on(t.status),
 }));
+
+/* Códigos de invitación. Cada usuario tiene 1 código con 10 usos; el super
+   admin ilimitado (maxUses null). El registro requiere un código válido. */
+export const inviteCodes = pgTable("invite_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(), // string completo, ej. "leadscout_a1b2c3"
+  ownerId: uuid("owner_id"), // profiles.id del dueño (null = sistema)
+  label: text("label"), // nota/nombre visible opcional
+  maxUses: integer("max_uses").default(10), // null = ilimitado
+  usesCount: integer("uses_count").notNull().default(0),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index().on(t.ownerId),
+}));
+
+/* Solicitudes de más códigos/usos al admin (bandeja tipo SINPE). */
+export const inviteCodeRequests = pgTable("invite_code_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  orgId: uuid("org_id"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+}, (t) => ({
+  statusIdx: index().on(t.status),
+  userIdx: index().on(t.userId),
+}));

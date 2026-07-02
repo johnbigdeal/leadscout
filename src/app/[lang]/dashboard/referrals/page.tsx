@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Gift, Copy, Check, Users, Sparkles, Loader2 } from "lucide-react";
+import { Gift, Copy, Check, Users, Sparkles, Loader2, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
 async function getAuthHeaders() {
@@ -24,27 +24,72 @@ type ReferralData = {
   referred: { email: string; createdAt: string; approved: boolean }[];
 };
 
+type InviteData = {
+  code: string;
+  usesCount: number;
+  maxUses: number | null;
+  enabled: boolean;
+  pendingRequest: boolean;
+};
+
 export default function ReferralsPage() {
   const [data, setData] = useState<ReferralData | null>(null);
+  const [invite, setInvite] = useState<InviteData | null>(null);
   const [plan, setPlan] = useState<string>("free");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+
+  async function fetchInvite() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/invitations", { headers });
+    if (res.ok) setInvite(await res.json());
+  }
 
   useEffect(() => {
     (async () => {
       const headers = await getAuthHeaders();
-      const [refRes, planRes] = await Promise.all([
+      const [refRes, planRes, invRes] = await Promise.all([
         fetch("/api/referrals", { headers }),
         fetch("/api/billing/plans", { headers }),
+        fetch("/api/invitations", { headers }),
       ]);
       if (refRes.ok) setData(await refRes.json());
       if (planRes.ok) {
         const p = await planRes.json();
         setPlan(p.currentPlan || "free");
       }
+      if (invRes.ok) setInvite(await invRes.json());
       setLoading(false);
     })();
   }, []);
+
+  const inviteLink = invite ? `${typeof window !== "undefined" ? window.location.origin : "https://leadscout.lat"}/es/auth/sign-up?code=${invite.code}` : "";
+  const usesLeft = invite ? (invite.maxUses === null ? Infinity : Math.max(0, invite.maxUses - invite.usesCount)) : 0;
+
+  async function copyInviteCode() {
+    if (!invite) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCodeCopied(true);
+    toast.success("Link de invitación copiado");
+    setTimeout(() => setCodeCopied(false), 2000);
+  }
+
+  async function requestMore() {
+    setRequesting(true);
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/invitations", { method: "POST", headers });
+    if (res.ok) {
+      toast.success("Solicitud enviada al administrador");
+      fetchInvite();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "No se pudo enviar la solicitud.");
+    }
+    setRequesting(false);
+  }
 
   async function copyLink() {
     if (!data?.link) return;
@@ -79,6 +124,46 @@ export default function ReferralsPage() {
           </p>
         </div>
       </div>
+
+      {/* Código de invitación */}
+      {invite && (
+        <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Ticket className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold">Tu código de invitación</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <code className="rounded-lg border border-primary/20 bg-white px-3 py-2 text-sm font-mono font-semibold text-primary">
+              {invite.code}
+            </code>
+            <span className="text-sm text-muted-foreground">
+              {invite.maxUses === null
+                ? "Usos ilimitados"
+                : `${usesLeft} de ${invite.maxUses} usos disponibles`}
+            </span>
+            <Button variant="outline" size="sm" onClick={copyInviteCode} className="ml-auto">
+              {codeCopied ? <Check className="mr-1.5 h-4 w-4 text-emerald-500" /> : <Copy className="mr-1.5 h-4 w-4" />}
+              {codeCopied ? "Copiado" : "Copiar link de invitación"}
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Compartí tu código o link: quien se registre con él queda aprobado automáticamente.
+          </p>
+          {invite.maxUses !== null && usesLeft === 0 && (
+            <div className="mt-3 flex items-center gap-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              <span>Se te acabaron los usos.</span>
+              {invite.pendingRequest ? (
+                <span className="font-medium">Solicitud enviada ✓</span>
+              ) : (
+                <Button size="sm" onClick={requestMore} disabled={requesting} className="ml-auto">
+                  {requesting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                  Solicitar más códigos
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Link */}
       <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
