@@ -124,6 +124,26 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
   }
 
+  /* Al promover a global: si ya existe otra fila global del mismo dominio,
+     no crear un duplicado (hay un índice único parcial por dominio global).
+     Consolidar en la fila global existente en vez de fallar con 500. */
+  if (patch.isGlobal === true) {
+    const [existingGlobal] = await db
+      .select()
+      .from(availableDomains)
+      .where(and(eq(availableDomains.domain, existing.domain), eq(availableDomains.isGlobal, true)))
+      .limit(1);
+    if (existingGlobal && existingGlobal.id !== id) {
+      const globalPatch: Record<string, unknown> = {};
+      if (typeof patch.accessLevel === "string") globalPatch.accessLevel = patch.accessLevel;
+      if (Object.keys(globalPatch).length > 0) {
+        await db.update(availableDomains).set(globalPatch).where(eq(availableDomains.id, existingGlobal.id));
+      }
+      const [g] = await db.select().from(availableDomains).where(eq(availableDomains.id, existingGlobal.id)).limit(1);
+      return NextResponse.json(g);
+    }
+  }
+
   /* If marking as default, clear other defaults for this org */
   if (patch.isDefault === true) {
     await db
@@ -132,13 +152,19 @@ export async function PATCH(request: Request) {
       .where(eq(availableDomains.orgId, existing.orgId ?? ctx.orgId));
   }
 
-  const [updated] = await db
-    .update(availableDomains)
-    .set(patch)
-    .where(eq(availableDomains.id, id))
-    .returning();
-
-  return NextResponse.json(updated);
+  try {
+    const [updated] = await db
+      .update(availableDomains)
+      .set(patch)
+      .where(eq(availableDomains.id, id))
+      .returning();
+    return NextResponse.json(updated);
+  } catch (e) {
+    const msg = (e as { code?: string })?.code === "23505"
+      ? "Ese dominio ya está disponible para todos."
+      : "No se pudo actualizar el dominio.";
+    return NextResponse.json({ error: msg }, { status: 409 });
+  }
 }
 
 /* DELETE /api/domains/available?id=xxx — quitar dominio del pool. */

@@ -66,6 +66,13 @@ export default function DomainsSettings() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [addZoneId, setAddZoneId] = useState("");
+  const [cfError, setCfError] = useState<string | null>(null);
+  const [showReconnect, setShowReconnect] = useState(false);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualDomain, setManualDomain] = useState("");
+  const [manualZoneId, setManualZoneId] = useState("");
+  const [manualGlobal, setManualGlobal] = useState(true);
+  const [manualAccess, setManualAccess] = useState("both");
 
   async function fetchPlan() {
     const headers = await getAuthHeaders();
@@ -104,7 +111,19 @@ export default function DomainsSettings() {
   async function fetchZones() {
     const headers = await getAuthHeaders();
     const res = await fetch("/api/cloudflare/zones", { headers });
-    if (res.ok) setZones(await res.json());
+    if (res.ok) {
+      setZones(await res.json());
+      setCfError(null);
+    } else {
+      setZones([]);
+      const data = await res.json().catch(() => null);
+      const detail = data?.error || data?.detail || "";
+      setCfError(
+        /invalid|token|auth/i.test(detail) || res.status === 401 || res.status === 403
+          ? "Tu token de Cloudflare no es válido o expiró. Reconectá tu cuenta para listar zonas y agregar dominios."
+          : "No se pudieron cargar las zonas de Cloudflare.",
+      );
+    }
   }
 
   async function fetchDomains() {
@@ -145,6 +164,32 @@ export default function DomainsSettings() {
       fetchAvailableDomainsList();
     } else {
       toast.error("No se pudo agregar el dominio.");
+    }
+  }
+
+  async function addManualDomain() {
+    if (!manualDomain.trim() || !manualZoneId.trim()) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/domains/available", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        domain: manualDomain.trim(),
+        zoneId: manualZoneId.trim(),
+        isGlobal: manualGlobal,
+        accessLevel: manualAccess,
+      }),
+    });
+    if (res.ok) {
+      toast.success("Dominio agregado");
+      setShowManualAdd(false);
+      setManualDomain("");
+      setManualZoneId("");
+      fetchAvailableDomainsList();
+    } else {
+      const data = await res.json().catch(() => null);
+      toast.error(data?.error || "No se pudo agregar el dominio.");
     }
   }
 
@@ -190,8 +235,10 @@ export default function DomainsSettings() {
       });
       if (res.ok) {
         setConnected(true);
+        setShowReconnect(false);
         setApiToken("");
         setAccountId("");
+        setCfError(null);
         setOauthMsg("Cuenta conectada correctamente ✓");
         fetchZones();
         fetchDomains();
@@ -271,6 +318,16 @@ export default function DomainsSettings() {
 
   const zonesToAdd = zones.filter((z) => !availableDomainsList.some((ad) => ad.domain === z.name));
 
+  /* Dedupe por dominio: si existe una fila global del dominio, mostrar esa
+     (con sus controles) y ocultar la copia org-scoped redundante. */
+  const dedupedDomains = Object.values(
+    availableDomainsList.reduce((acc, d) => {
+      const prev = acc[d.domain];
+      if (!prev || (d.isGlobal && !prev.isGlobal)) acc[d.domain] = d;
+      return acc;
+    }, {} as Record<string, AvailableDomain>),
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -298,16 +355,26 @@ export default function DomainsSettings() {
           )}
         </div>
 
-        {connected ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-            <span>Cuenta <span className="font-mono text-zinc-700">{accountId ? `${accountId.slice(0, 8)}…` : "—"}</span></span>
-            {authType && (
-              <Badge variant="outline" className="text-[10px]">
-                {authType === "oauth" ? "OAuth" : "Token manual"}
-              </Badge>
+        {connected && !showReconnect ? (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+              <span>Cuenta <span className="font-mono text-zinc-700">{accountId ? `${accountId.slice(0, 8)}…` : "—"}</span></span>
+              {authType && (
+                <Badge variant="outline" className="text-[10px]">
+                  {authType === "oauth" ? "OAuth" : "Token manual"}
+                </Badge>
+              )}
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => setShowReconnect(true)}>
+                Reconectar / actualizar credenciales
+              </Button>
+            </div>
+            {cfError && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                {cfError}
+              </div>
             )}
           </div>
-        ) : plan === "free" && !isSuperAdmin ? (
+        ) : !connected && plan === "free" && !isSuperAdmin ? (
           <div className="mt-4 rounded-lg border border-amber-200 bg-gradient-to-b from-amber-50 to-white p-6 text-center space-y-4">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-purple-600 shadow-lg">
               <Crown className="h-6 w-6 text-white" />
@@ -346,10 +413,17 @@ export default function DomainsSettings() {
                 <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" />
               </div>
             </div>
-            <Button onClick={handleConnect} disabled={connecting || !apiToken || !accountId}>
-              {connecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
-              Conectar cuenta
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleConnect} disabled={connecting || !apiToken || !accountId}>
+                {connecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
+                {connected ? "Actualizar credenciales" : "Conectar cuenta"}
+              </Button>
+              {connected && showReconnect && (
+                <Button variant="outline" onClick={() => { setShowReconnect(false); setApiToken(""); }}>
+                  Cancelar
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -370,39 +444,78 @@ export default function DomainsSettings() {
                     : "Dominios disponibles para publicar tus sitios."}
                 </p>
               </div>
-              {zonesToAdd.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={addZoneId}
-                    onChange={(e) => setAddZoneId(e.target.value)}
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  >
-                    <option value="">Agregar desde Cloudflare…</option>
-                    {zonesToAdd.map((z) => (
-                      <option key={z.id} value={z.id}>{z.name}</option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    disabled={!addZoneId}
-                    onClick={() => {
-                      const z = zones.find((zz) => zz.id === addZoneId);
-                      if (z) addAvailableDomain(z);
-                    }}
-                  >
-                    <Plus className="mr-1 h-3 w-3" /> Agregar
+              <div className="flex flex-wrap items-center gap-2">
+                {zonesToAdd.length > 0 && (
+                  <>
+                    <select
+                      value={addZoneId}
+                      onChange={(e) => setAddZoneId(e.target.value)}
+                      className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">Agregar desde Cloudflare…</option>
+                      {zonesToAdd.map((z) => (
+                        <option key={z.id} value={z.id}>{z.name}</option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      disabled={!addZoneId}
+                      onClick={() => {
+                        const z = zones.find((zz) => zz.id === addZoneId);
+                        if (z) addAvailableDomain(z);
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" /> Agregar
+                    </Button>
+                  </>
+                )}
+                {isSuperAdmin && (
+                  <Button size="sm" variant="outline" onClick={() => setShowManualAdd((v) => !v)}>
+                    <Plus className="mr-1 h-3 w-3" /> Agregar manualmente
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
+            {isSuperAdmin && showManualAdd && (
+              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Agregá un dominio por su <strong>Zone ID</strong> de Cloudflare (útil para dominios de la plataforma aunque el listado de zonas falle).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input value={manualDomain} onChange={(e) => setManualDomain(e.target.value)} placeholder="dominio.com" />
+                  <Input value={manualZoneId} onChange={(e) => setManualZoneId(e.target.value)} placeholder="Zone ID (Cloudflare)" />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={manualGlobal} onChange={(e) => setManualGlobal(e.target.checked)} />
+                    Para todos (global)
+                  </label>
+                  {manualGlobal && (
+                    <select
+                      value={manualAccess}
+                      onChange={(e) => setManualAccess(e.target.value)}
+                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="both">Free y Pro</option>
+                      <option value="free">Solo Free</option>
+                      <option value="pro">Solo Pro</option>
+                    </select>
+                  )}
+                  <Button size="sm" className="ml-auto" disabled={!manualDomain.trim() || !manualZoneId.trim()} onClick={addManualDomain}>
+                    Agregar dominio
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 space-y-2">
-              {availableDomainsList.length === 0 ? (
+              {dedupedDomains.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500">
                   No hay dominios configurados. Agregá uno desde las zonas de Cloudflare.
                 </p>
               ) : (
-                availableDomainsList.map((d) => {
+                dedupedDomains.map((d) => {
                   const canManage = isSuperAdmin || !d.isGlobal;
                   return (
                     <div key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3">
