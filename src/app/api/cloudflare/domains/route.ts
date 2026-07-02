@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         name: subdomain,
         content: target,
         ttl: 1, /* Auto */
-        proxied: true,
+        proxied: false, /* DNS-only (gris): Vercel necesita ver el CNAME para validar/SSL */
       }),
     });
 

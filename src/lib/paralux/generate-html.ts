@@ -384,7 +384,46 @@ export function generateHTML(
     instagram: "Instagram", facebook: "Facebook", whatsapp: "WhatsApp", tiktok: "TikTok",
     youtube: "YouTube", linkedin: "LinkedIn", x: "X", website: S.websiteLabel,
   };
-  const socialLinks = (d.socialLinks || []).filter((s: any) => s.url);
+  /* Normaliza entradas parciales (usuario/handle/dominio suelto) a URLs válidas,
+     para que "escribí mi Instagram" funcione sin pegar el link completo. */
+  const normalizeSocialUrl = (type: string, raw: string): string => {
+    const val = (raw || "").trim();
+    if (!val) return "";
+    if (/^https?:\/\//i.test(val)) return val;
+    if (type === "whatsapp") {
+      const digits = onlyDigits(val);
+      return digits ? `https://wa.me/${digits}` : "";
+    }
+    const handle = val.replace(/^@/, "").replace(/^\/+/, "");
+    switch (type) {
+      case "instagram": return `https://instagram.com/${handle}`;
+      case "tiktok": return `https://tiktok.com/@${handle}`;
+      case "x": return `https://x.com/${handle}`;
+      case "facebook": return `https://${val.includes(".") ? val : `facebook.com/${handle}`}`;
+      case "youtube": return `https://${val.includes(".") ? val : `youtube.com/@${handle}`}`;
+      case "linkedin": return `https://${val.includes(".") ? val : `linkedin.com/in/${handle}`}`;
+      default: return `https://${val}`;
+    }
+  };
+
+  /* Lista unificada: sección de botones (socialLinks) + campos sueltos de la
+     pestaña Contacto (instagram/facebook/website). Editar en cualquier lado aparece. */
+  const rawSocials: Array<{ type: string; url: string }> = [
+    ...((d.socialLinks || []) as Array<{ type: string; url: string }>),
+    { type: "instagram", url: d.instagram || "" },
+    { type: "facebook", url: d.facebook || "" },
+    { type: "website", url: d.website || "" },
+  ];
+  const seenSocial = new Set<string>();
+  const socialLinks = rawSocials
+    .map((s) => ({ type: s.type, url: normalizeSocialUrl(s.type, s.url) }))
+    .filter((s) => {
+      if (!s.url) return false;
+      const key = `${s.type}|${s.url}`;
+      if (seenSocial.has(key)) return false;
+      seenSocial.add(key);
+      return true;
+    });
   const socialHTML = socialLinks.length
     ? `<section id="redes" class="section social">
         <div class="wrap">

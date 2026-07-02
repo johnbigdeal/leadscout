@@ -232,6 +232,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .where(eq(websites.id, id))
       .returning();
 
+    /* Purga la caché de Cloudflare para el apex y www (paridad con el flujo de subdominio) */
+    await cfPurgeCache(cfToken, resolvedZoneId, [`https://${cleanDomain}/`, `https://www.${cleanDomain}/`]);
+
     return NextResponse.json({ success: true, website: updated, url: `https://${cleanDomain}` });
   }
 
@@ -251,6 +254,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let mainDomain: string | null = null;
   let zoneId: string | null = null;
   let domainOwnerOrgId: string | null = null;
+  let domainIsGlobal = false;
 
   if (requestedRootDomain) {
     /* Validar acceso: dominio propio activo, o global con accessLevel del plan. */
@@ -274,6 +278,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     mainDomain = row.domain;
     zoneId = row.zoneId;
     domainOwnerOrgId = row.orgId;
+    domainIsGlobal = row.isGlobal === true;
   } else {
     /* Sin dominio pedido: default de la org (Pro) → default global del plan → leadscout.lat */
     if (plan !== "free") {
@@ -286,6 +291,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         mainDomain = orgDefault.domain;
         zoneId = orgDefault.zoneId;
         domainOwnerOrgId = orgDefault.orgId;
+        domainIsGlobal = orgDefault.isGlobal === true;
       }
     }
     if (!mainDomain) {
@@ -298,9 +304,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         mainDomain = globalDefault.domain;
         zoneId = globalDefault.zoneId;
         domainOwnerOrgId = globalDefault.orgId;
+        domainIsGlobal = true;
       } else {
         /* Fallback: leadscout.lat (dominio global de la plataforma) */
         mainDomain = "leadscout.lat";
+        domainIsGlobal = true;
         const [g] = await db
           .select()
           .from(availableDomains)
@@ -314,9 +322,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  /* Resolver el token de Cloudflare:
-     system env → org dueña del dominio (para globales del admin) → org que publica. */
-  let subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || null;
+  /* Resolver el token de Cloudflare priorizando al DUEÑO REAL de la zona.
+     Para dominios propios de una org (no globales) la zona vive en la cuenta
+     Cloudflare de esa org, así que el token del sistema (que solo tiene acceso a
+     leadscout.lat) no sirve — hay que usar el token de la org dueña. Para dominios
+     globales/plataforma, el token del sistema es el correcto. */
+  let subdomainCfToken: string | null = null;
+  if (!domainIsGlobal && domainOwnerOrgId) {
+    subdomainCfToken = await getValidCfToken(domainOwnerOrgId);
+  }
+  if (!subdomainCfToken) {
+    subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || null;
+  }
   if (!subdomainCfToken && domainOwnerOrgId) {
     subdomainCfToken = await getValidCfToken(domainOwnerOrgId);
   }
@@ -361,15 +378,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Failed to resolve zone" }, { status: 500 });
   }
 
-  /* Ensure wildcard record exists for instant propagation */
-  await ensureWildcardRecord(subdomainCfToken, resolvedZoneId, mainDomain);
-
-  /* Remove any legacy individual DNS record for this subdomain (switch to wildcard) */
-  if (existing[0]?.dnsRecordId) {
+  /* Ensure DNS resolves. Preferimos el comodín (*.rootDomain) para propagación
+     instantánea — igual que leadscout.lat. Si no se pudo crear (p. ej. el token no
+     tiene permiso sobre esa zona), NO seguimos con un "éxito" fantasma: creamos un
+     CNAME individual para este subdominio exacto como fallback, o devolvemos error. */
+  let dnsRecordIdToSave: string | null = null;
+  const wildcardId = await ensureWildcardRecord(subdomainCfToken, resolvedZoneId, mainDomain);
+  if (wildcardId) {
+    /* Comodín OK: el routing lo maneja él. Borrar cualquier registro individual legacy. */
+    if (existing[0]?.dnsRecordId) {
+      try {
+        await cfRequest(subdomainCfToken, `/zones/${resolvedZoneId}/dns_records/${existing[0].dnsRecordId}`, { method: "DELETE" });
+      } catch (e: any) {
+        console.error("Failed to delete legacy subdomain record:", e.message);
+      }
+    }
+  } else {
+    /* Comodín falló: crear CNAME individual para el subdominio (idempotente). */
     try {
-      await cfRequest(subdomainCfToken, `/zones/${resolvedZoneId}/dns_records/${existing[0].dnsRecordId}`, { method: "DELETE" });
+      dnsRecordIdToSave = await ensureDnsRecord(subdomainCfToken, resolvedZoneId, "CNAME", fullDomain, "cname.vercel-dns.com");
     } catch (e: any) {
-      console.error("Failed to delete legacy subdomain record:", e.message);
+      console.error("Failed to create individual subdomain record:", e.message);
+      return NextResponse.json(
+        { error: `No se pudo crear el registro DNS en Cloudflare para ${fullDomain}. Verificá que la zona esté en la cuenta correcta y que el token tenga permisos de edición de DNS.` },
+        { status: 502 },
+      );
     }
   }
 
@@ -395,16 +428,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await db.delete(customDomains).where(eq(customDomains.id, old.id));
   }
 
-  /* Save to DB (dnsRecordId = null because the wildcard CNAME handles routing) */
+  /* Save to DB. dnsRecordId = null cuando el comodín maneja el routing; el id del
+     CNAME individual cuando fue el fallback. */
   const zId: string = resolvedZoneId;
   if (existing.length > 0) {
     await db.update(customDomains)
-      .set({ websiteId: id, dnsRecordId: null, zoneId: zId, status: "active" })
+      .set({ websiteId: id, dnsRecordId: dnsRecordIdToSave, zoneId: zId, status: "active" })
       .where(eq(customDomains.id, existing[0].id));
   } else {
     await db.insert(customDomains).values({
       orgId: ctx.orgId, websiteId: id, domain: fullDomain, rootDomain: mainDomain, subdomain,
-      zoneId: zId, dnsRecordId: null, recordType: "CNAME", target: "cname.vercel-dns.com", status: "active",
+      zoneId: zId, dnsRecordId: dnsRecordIdToSave, recordType: "CNAME", target: "cname.vercel-dns.com", status: "active",
     });
   }
 
