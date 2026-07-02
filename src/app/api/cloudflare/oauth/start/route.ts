@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { memberships } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { canConnectCloudflare } from "@/lib/plans";
 import { randomBytes } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +11,15 @@ export async function GET(request: Request) {
   const result = await requireAuth(request);
   if (result.response) return result.response;
   const ctx = result.ctx;
+
+  /* Conexión de Cloudflare (OAuth): disponible para Pro y super admin, igual
+     que la conexión por token manual. Free debe hacer upgrade. */
+  if (!ctx.isSuperAdmin && !(await canConnectCloudflare(ctx.orgId))) {
+    return NextResponse.json(
+      { error: "Conexión de Cloudflare disponible solo en plan Pro. Upgrade para conectar tu cuenta." },
+      { status: 403 },
+    );
+  }
 
   const clientId = process.env.CLOUDFLARE_CLIENT_ID;
   if (!clientId) {
