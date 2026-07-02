@@ -148,6 +148,13 @@
       "when": 1782939074954,
       "tag": "0020_loud_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782956812561,
+      "tag": "0021_stale_starbolt",
+      "breakpoints": true
     }
   ]
 }

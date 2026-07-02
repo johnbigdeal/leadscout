@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { websites, memberships, customDomains, cloudflareAccounts, availableDomains, subscriptions } from "@/lib/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, inArray } from "drizzle-orm";
 import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -240,50 +240,48 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ success: true, website: updated, url: `https://${cleanDomain}` });
   }
 
-  /* ─── SUBDOMAIN (uses system Cloudflare token) ─── */
-  /* Get Cloudflare token: prefer system env var, fallback to org's Cloudflare */
-  const subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || (
-    (await db
-      .select({ apiToken: cloudflareAccounts.apiToken })
-      .from(cloudflareAccounts)
-      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
-      .limit(1)
-    )[0]?.apiToken
-  );
-
-  if (!subdomainCfToken) {
-    return NextResponse.json({ error: "No se pudo conectar con Cloudflare para publicar. Contacta al administrador." }, { status: 500 });
-  }
-
+  /* ─── SUBDOMAIN ─── */
   /* Check plan for domain access control */
   const [sub] = await db
     .select({ plan: subscriptions.plan })
     .from(subscriptions)
     .where(eq(subscriptions.orgId, ctx.orgId))
     .limit(1);
-  /* Superadmins get Pro behaviour (choose any root domain), matching the custom
-     domain path above and /api/billing/plans. Otherwise free orgs are forced to
-     leadscout.lat. */
+  /* Superadmins get Pro behaviour (choose any root domain). Otherwise free orgs
+     only get domains globales con accessLevel free|both. */
   const plan = ctx.isSuperAdmin ? "pro" : (sub?.plan || "free");
+  const allowedLevels = plan === "pro" ? ["pro", "both"] : ["free", "both"];
 
-  /* Resolve root domain */
+  /* Resolve root domain (+ zoneId + org dueña del dominio para el token) */
   let mainDomain: string | null = null;
   let zoneId: string | null = null;
+  let domainOwnerOrgId: string | null = null;
 
-  /* Free plan: force leadscout.lat */
-  if (plan === "free") {
-    mainDomain = "leadscout.lat";
-    const [g] = await db
+  if (requestedRootDomain) {
+    /* Validar acceso: dominio propio activo, o global con accessLevel del plan. */
+    const [row] = await db
       .select()
       .from(availableDomains)
-      .where(and(eq(availableDomains.domain, "leadscout.lat"), eq(availableDomains.isGlobal, true)))
+      .where(
+        and(
+          eq(availableDomains.domain, requestedRootDomain),
+          eq(availableDomains.isActive, true),
+          or(
+            eq(availableDomains.orgId, ctx.orgId),
+            and(eq(availableDomains.isGlobal, true), inArray(availableDomains.accessLevel, allowedLevels)),
+          ),
+        ),
+      )
       .limit(1);
-    if (g) zoneId = g.zoneId;
+    if (!row) {
+      return NextResponse.json({ error: "Ese dominio no está disponible para tu plan." }, { status: 400 });
+    }
+    mainDomain = row.domain;
+    zoneId = row.zoneId;
+    domainOwnerOrgId = row.orgId;
   } else {
-    /* Pro plan: use requestedRootDomain if provided */
-    mainDomain = requestedRootDomain;
-    if (!mainDomain) {
-      /* Find default domain (org-specific first, then global) */
+    /* Sin dominio pedido: default de la org (Pro) → default global del plan → leadscout.lat */
+    if (plan !== "free") {
       const [orgDefault] = await db
         .select()
         .from(availableDomains)
@@ -292,36 +290,54 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (orgDefault) {
         mainDomain = orgDefault.domain;
         zoneId = orgDefault.zoneId;
+        domainOwnerOrgId = orgDefault.orgId;
+      }
+    }
+    if (!mainDomain) {
+      const [globalDefault] = await db
+        .select()
+        .from(availableDomains)
+        .where(and(eq(availableDomains.isGlobal, true), eq(availableDomains.isDefault, true), eq(availableDomains.isActive, true), inArray(availableDomains.accessLevel, allowedLevels)))
+        .limit(1);
+      if (globalDefault) {
+        mainDomain = globalDefault.domain;
+        zoneId = globalDefault.zoneId;
+        domainOwnerOrgId = globalDefault.orgId;
       } else {
-        const [globalDefault] = await db
+        /* Fallback: leadscout.lat (dominio global de la plataforma) */
+        mainDomain = "leadscout.lat";
+        const [g] = await db
           .select()
           .from(availableDomains)
-          .where(and(eq(availableDomains.isGlobal, true), eq(availableDomains.isDefault, true)))
+          .where(and(eq(availableDomains.domain, "leadscout.lat"), eq(availableDomains.isGlobal, true)))
           .limit(1);
-        if (globalDefault) {
-          mainDomain = globalDefault.domain;
-          zoneId = globalDefault.zoneId;
-        } else {
-          mainDomain = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "") || "leadscout.lat";
+        if (g) {
+          zoneId = g.zoneId;
+          domainOwnerOrgId = g.orgId;
         }
       }
     }
   }
 
-  /* Resolve zoneId from DB if not already set */
-  if (mainDomain && !zoneId) {
-    const [matched] = await db
-      .select()
-      .from(availableDomains)
-      .where(
-        and(
-          eq(availableDomains.domain, mainDomain),
-          eq(availableDomains.isActive, true),
-          or(eq(availableDomains.orgId, ctx.orgId), eq(availableDomains.isGlobal, true))
-        )
-      )
-      .limit(1);
-    if (matched) zoneId = matched.zoneId;
+  /* Resolver el token de Cloudflare:
+     system env → org dueña del dominio (para globales del admin) → org que publica. */
+  let subdomainCfToken = process.env.CLOUDFLARE_API_TOKEN || null;
+  if (!subdomainCfToken && domainOwnerOrgId) {
+    subdomainCfToken = (await db
+      .select({ apiToken: cloudflareAccounts.apiToken })
+      .from(cloudflareAccounts)
+      .where(eq(cloudflareAccounts.orgId, domainOwnerOrgId))
+      .limit(1))[0]?.apiToken ?? null;
+  }
+  if (!subdomainCfToken) {
+    subdomainCfToken = (await db
+      .select({ apiToken: cloudflareAccounts.apiToken })
+      .from(cloudflareAccounts)
+      .where(eq(cloudflareAccounts.orgId, ctx.orgId))
+      .limit(1))[0]?.apiToken ?? null;
+  }
+  if (!subdomainCfToken) {
+    return NextResponse.json({ error: "No se pudo conectar con Cloudflare para publicar. Contacta al administrador." }, { status: 500 });
   }
 
   /* Generate subdomain */

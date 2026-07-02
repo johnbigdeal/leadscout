@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     role: ctx.role,
     approved: ctx.approved,
+    isSuperAdmin: ctx.isSuperAdmin,
     currency,
   });
 }

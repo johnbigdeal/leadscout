@@ -316,6 +316,9 @@ export const availableDomains = pgTable("available_domains", {
   isActive: boolean("is_active").notNull().default(true),
   isDefault: boolean("is_default").notNull().default(false),
   isGlobal: boolean("is_global").notNull().default(false),
+  /* Nivel de acceso de un dominio global: "both" | "free" | "pro".
+     Solo aplica cuando isGlobal=true; lo define el super admin. */
+  accessLevel: text("access_level").notNull().default("both"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgDomainUnique: uniqueIndex().on(t.orgId, t.domain),

@@ -1,0 +1,1 @@
+ALTER TABLE "available_domains" ADD COLUMN "access_level" text DEFAULT 'both' NOT NULL;
