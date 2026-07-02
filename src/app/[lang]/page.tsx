@@ -88,6 +88,9 @@ export default function HomePage() {
             <a href="#faq" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 md:inline-block">
               Preguntas
             </a>
+            <Link href="/roadmap" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 md:inline-block">
+              Roadmap
+            </Link>
             <Link
               href="/auth/sign-in"
               className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 sm:px-4"
