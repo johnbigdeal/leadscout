@@ -37,7 +37,6 @@ export default function ReferralsPage() {
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [plan, setPlan] = useState<string>("free");
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [requesting, setRequesting] = useState(false);
 
@@ -91,13 +90,6 @@ export default function ReferralsPage() {
     setRequesting(false);
   }
 
-  async function copyLink() {
-    if (!data?.link) return;
-    await navigator.clipboard.writeText(data.link);
-    setCopied(true);
-    toast.success("Link copiado");
-    setTimeout(() => setCopied(false), 2000);
-  }
 
   if (loading) {
     return (
@@ -125,30 +117,44 @@ export default function ReferralsPage() {
         </div>
       </div>
 
-      {/* Código de invitación */}
+      {/* Link de referido = link de invitación (con tu código). Un solo link:
+         invita (queda aprobado) y te acredita como afiliado. */}
       {invite && (
         <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-5">
           <div className="mb-3 flex items-center gap-2">
             <Ticket className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">Tu código de invitación</h2>
+            <h2 className="text-sm font-semibold">Tu link de referido</h2>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <code className="rounded-lg border border-primary/20 bg-white px-3 py-2 text-sm font-mono font-semibold text-primary">
-              {invite.code}
-            </code>
-            <span className="text-sm text-muted-foreground">
-              {invite.maxUses === null
-                ? "Usos ilimitados"
-                : `${usesLeft} de ${invite.maxUses} usos disponibles`}
-            </span>
-            <Button variant="outline" size="sm" onClick={copyInviteCode} className="ml-auto">
+
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Link de invitación (incluye tu código)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={inviteLink}
+              className="flex-1 rounded-lg border border-primary/20 bg-white px-3 py-2 text-sm text-zinc-700"
+            />
+            <Button variant="outline" size="sm" onClick={copyInviteCode}>
               {codeCopied ? <Check className="mr-1.5 h-4 w-4 text-emerald-500" /> : <Copy className="mr-1.5 h-4 w-4" />}
-              {codeCopied ? "Copiado" : "Copiar link de invitación"}
+              {codeCopied ? "Copiado" : "Copiar"}
             </Button>
           </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-muted-foreground">Código:</span>
+            <code className="rounded border border-primary/20 bg-white px-2 py-1 font-mono font-semibold text-primary">
+              {invite.code}
+            </code>
+            <span className="text-muted-foreground">
+              {invite.maxUses === null ? "Usos ilimitados" : `${usesLeft} de ${invite.maxUses} usos disponibles`}
+            </span>
+          </div>
+
           <p className="mt-2 text-xs text-muted-foreground">
-            Compartí tu código o link: quien se registre con él queda aprobado automáticamente.
+            Compartí este link: quien se registre con él queda <strong>aprobado automáticamente</strong> y contás como su referido (afiliado), así se trackea correctamente.
           </p>
+
           {invite.maxUses !== null && usesLeft === 0 && (
             <div className="mt-3 flex items-center gap-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
               <span>Se te acabaron los usos.</span>
@@ -164,27 +170,6 @@ export default function ReferralsPage() {
           )}
         </div>
       )}
-
-      {/* Link */}
-      <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-          Tu link de referido
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            readOnly
-            value={data?.link || ""}
-            className="flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
-          />
-          <Button variant="outline" size="sm" onClick={copyLink} disabled={!data?.link}>
-            {copied ? <Check className="mr-1.5 h-4 w-4 text-emerald-500" /> : <Copy className="mr-1.5 h-4 w-4" />}
-            {copied ? "Copiado" : "Copiar"}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-zinc-500">
-          Compartí este link. Ganás el crédito cuando la cuenta de tu referido es aprobada (o ingresa por primera vez).
-        </p>
-      </div>
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
