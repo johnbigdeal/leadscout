@@ -360,7 +360,7 @@ export const subscribers = pgTable("subscribers", {
    plataforma. La autorización vive en las API routes (/api/roadmap/*).
    ========================================================================= */
 
-/* Ideas propuestas por la comunidad. status: proposed | considering | in_progress.
+/* Ideas propuestas por la comunidad. status: proposed | considering | in_progress | completed.
    voteCount es denormalizado y se mantiene en la API route al votar (no hay
    triggers en este proyecto). */
 export const roadmapIdeas = pgTable("roadmap_ideas", {

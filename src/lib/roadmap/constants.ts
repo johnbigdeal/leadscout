@@ -4,7 +4,7 @@
    ========================================================================= */
 
 /** Estados/columnas del roadmap, en orden de progreso. */
-export const ROADMAP_STATUSES = ["proposed", "considering", "in_progress"] as const;
+export const ROADMAP_STATUSES = ["proposed", "considering", "in_progress", "completed"] as const;
 
 export type RoadmapStatus = (typeof ROADMAP_STATUSES)[number];
 

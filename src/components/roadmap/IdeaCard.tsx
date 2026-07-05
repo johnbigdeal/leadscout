@@ -21,6 +21,7 @@ const STATUS_BORDER: Record<RoadmapStatus, string> = {
   proposed: "border-t-accent/40",
   considering: "border-t-amber-400/50",
   in_progress: "border-t-emerald-400/50",
+  completed: "border-t-blue-400/50",
 };
 
 export function IdeaCard({

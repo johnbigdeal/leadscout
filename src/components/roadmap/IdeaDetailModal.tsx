@@ -16,6 +16,7 @@ const STATUS_DOT: Record<RoadmapStatus, string> = {
   proposed: "bg-accent",
   considering: "bg-amber-400",
   in_progress: "bg-emerald-400",
+  completed: "bg-blue-500",
 };
 
 /**
