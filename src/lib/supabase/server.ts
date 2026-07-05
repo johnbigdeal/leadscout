@@ -14,9 +14,16 @@ export async function createBrowserClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          } catch {
+            /* Llamado desde el render de un Server Component: Next.js no permite
+               setear cookies ahí. Se ignora — getUser() sigue funcionando con el
+               token actual y el refrescado se persiste en la próxima request que
+               pase por un Route Handler / Server Action / API. */
+          }
         },
       },
     },
