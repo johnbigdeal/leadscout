@@ -27,12 +27,14 @@ export function IdeaCard({
   idea,
   isAdmin,
   onVote,
+  onOpenDetail,
   onChangeStatus,
   onDelete,
 }: {
   idea: Idea;
   isAdmin: boolean;
   onVote: (idea: Idea) => void;
+  onOpenDetail: (idea: Idea) => void;
   onChangeStatus: (idea: Idea, status: RoadmapStatus) => void;
   onDelete: (idea: Idea) => void;
 }) {
@@ -69,9 +71,23 @@ export function IdeaCard({
           <span className="text-sm font-bold tabular-nums">{idea.voteCount}</span>
         </button>
 
-        {/* Contenido */}
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900">{idea.title}</h3>
+        {/* Contenido — clicable para abrir el detalle completo */}
+        <div
+          className="group min-w-0 flex-1 cursor-pointer text-left"
+          role="button"
+          tabIndex={0}
+          aria-label={t("viewDetails")}
+          onClick={() => onOpenDetail(idea)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onOpenDetail(idea);
+            }
+          }}
+        >
+          <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900 transition-colors group-hover:text-accent">
+            {idea.title}
+          </h3>
           {idea.description && (
             <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-zinc-500">
               {idea.description}

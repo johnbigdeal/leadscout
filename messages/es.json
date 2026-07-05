@@ -183,6 +183,8 @@
     "statusError": "No se pudo cambiar el estado. Intentá de nuevo.",
     "deleteSuccess": "Idea eliminada",
     "deleteError": "No se pudo eliminar la idea. Intentá de nuevo.",
-    "deleteConfirm": "¿Eliminar esta idea? Se borrarán también sus votos."
+    "deleteConfirm": "¿Eliminar esta idea? Se borrarán también sus votos.",
+    "viewDetails": "Ver detalle de la idea",
+    "noDescription": "Esta idea no tiene descripción."
   }
 }

@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { IdeaCard } from "@/components/roadmap/IdeaCard";
 import { AddIdeaModal } from "@/components/roadmap/AddIdeaModal";
+import { IdeaDetailModal } from "@/components/roadmap/IdeaDetailModal";
 import { ROADMAP_STATUSES, type RoadmapStatus } from "@/lib/roadmap/constants";
 import {
   fetchIdeas,
@@ -77,6 +78,7 @@ function KanbanColumn({
   ideas,
   isAdmin,
   onVote,
+  onOpenDetail,
   onChangeStatus,
   onDelete,
 }: {
@@ -84,6 +86,7 @@ function KanbanColumn({
   ideas: Idea[];
   isAdmin: boolean;
   onVote: (idea: Idea) => void;
+  onOpenDetail: (idea: Idea) => void;
   onChangeStatus: (idea: Idea, status: RoadmapStatus) => void;
   onDelete: (idea: Idea) => void;
 }) {
@@ -115,6 +118,7 @@ function KanbanColumn({
                 idea={idea}
                 isAdmin={isAdmin}
                 onVote={onVote}
+                onOpenDetail={onOpenDetail}
                 onChangeStatus={onChangeStatus}
                 onDelete={onDelete}
               />
@@ -140,6 +144,10 @@ export default function RoadmapBoard({
   const [addOpen, setAddOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [activeIdea, setActiveIdea] = useState<Idea | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+
+  /* Idea del detalle, derivada de la lista para que los votos se vean en vivo. */
+  const detailIdea = detailId ? ideas.find((i) => i.id === detailId) ?? null : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -162,6 +170,7 @@ export default function RoadmapBoard({
 
   function requireLogin(): boolean {
     if (!currentUserId) {
+      setDetailId(null);
       setLoginOpen(true);
       return false;
     }
@@ -298,6 +307,7 @@ export default function RoadmapBoard({
                 ideas={byStatus(status)}
                 isAdmin={isAdmin}
                 onVote={handleVote}
+                onOpenDetail={(idea) => setDetailId(idea.id)}
                 onChangeStatus={handleChangeStatus}
                 onDelete={handleDelete}
               />
@@ -321,6 +331,13 @@ export default function RoadmapBoard({
         onCreated={(idea) => setIdeas((list) => [idea, ...list])}
       />
       <LoginPromptModal open={loginOpen} onOpenChange={setLoginOpen} />
+      <IdeaDetailModal
+        idea={detailIdea}
+        onOpenChange={(open) => {
+          if (!open) setDetailId(null);
+        }}
+        onVote={handleVote}
+      />
     </div>
   );
 }
