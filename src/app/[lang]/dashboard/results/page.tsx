@@ -48,7 +48,7 @@ type Filters = {
 type PipelineOption = { id: string; name: string; category: string | null; stages: string[] };
 type CategoryOption = { id: string; name: string; color: string };
 
-const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, soloUnclaimed: false, inCrm: "all", nameQuery: "" };
+const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, soloUnclaimed: false, inCrm: "no", nameQuery: "" };
 const PER_PAGE_OPTIONS = [25, 50];
 
 function getSocial(biz: Business, platform: string): string | null {
@@ -119,7 +119,7 @@ export default function ResultsPage() {
     if (filters.hasPhone) n++;
     if (filters.hasWhatsapp) n++;
     if (filters.soloUnclaimed) n++;
-    if (filters.inCrm !== "all") n++;
+    if (filters.inCrm !== defaultFilters.inCrm) n++;
     if (filters.nameQuery) n++;
     return n;
   }, [filters]);
@@ -218,6 +218,12 @@ export default function ResultsPage() {
     setLeadIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
+      return next;
+    });
+    // Los agregados salen de la lista (filtro inCrm=no); limpiar su selección.
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
       return next;
     });
     if (wasSelected) {
