@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -314,7 +315,7 @@ function LeadDetailDialog({
   pipelines: Pipeline[];
   activePipelineId: string | null | undefined;
   onPipelineChange: (pipelineId: string | null) => void;
-  onCreateWebsite?: (leadId: string, businessId?: string) => void;
+  onCreateWebsite?: (leadId: string, businessId?: string, siteType?: "paralux" | "biolink" | "both") => void;
   creatingWebsite?: boolean;
   plan: string;
   onShowUpgrade: (feature: string) => void;
@@ -505,19 +506,24 @@ function LeadDetailDialog({
                   {showScript ? "Ocultar script" : "Mostrar script"}
                 </Button>
                 {onCreateWebsite && lead?.id && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={creatingWebsite}
-                    onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined)}
-                  >
-                    {creatingWebsite ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Globe className="mr-1.5 h-4 w-4" />
-                    )}
-                    {creatingWebsite ? "Creando…" : "Crear Website"}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={creatingWebsite}
+                      className="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
+                    >
+                      {creatingWebsite ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Globe className="mr-1.5 h-4 w-4" />
+                      )}
+                      {creatingWebsite ? "Creando…" : "Crear sitio"}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined, "paralux")}>Landing</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined, "biolink")}>Link in bio</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onCreateWebsite(lead.id, lead.businessId || undefined, "both")}>Ambos</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
             </div>
@@ -1113,7 +1119,7 @@ export default function CrmPage() {
     toast.success("Prospecto eliminado");
   }
 
-  async function handleCreateWebsite(leadId: string, businessId?: string) {
+  async function handleCreateWebsite(leadId: string, businessId?: string, siteType: "paralux" | "biolink" | "both" = "paralux") {
     /* Guard síncrono: evita que clics rápidos disparen varios POST (duplicados). */
     if (creatingWebsiteRef.current) return;
     creatingWebsiteRef.current = true;
@@ -1121,22 +1127,29 @@ export default function CrmPage() {
     try {
       const headers = await getAuthHeaders();
       headers["Content-Type"] = "application/json";
-      const res = await fetch("/api/websites", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name: `Website ${selectedLead?.business?.name || "Nuevo"}`,
-          leadId,
-          businessId,
-        }),
-      });
-      if (res.ok) {
-        const website = await res.json();
-        router.push(`/dashboard/builder/${website.id}`);
+      const bizName = selectedLead?.business?.name || "Nuevo";
+      const createOne = async (type: "paralux" | "biolink") => {
+        const name = type === "biolink" ? `Biolink ${bizName}` : `Website ${bizName}`;
+        const res = await fetch("/api/websites", {
+          method: "POST", headers,
+          body: JSON.stringify({ name, leadId, businessId, siteType: type }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "No se pudo crear el sitio. Intentá de nuevo.");
+        }
+        return (await res.json()).id as string;
+      };
+      if (siteType === "both") {
+        await createOne("paralux");
+        const bioId = await createOne("biolink");
+        router.push(`/dashboard/builder/${bioId}`);
       } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
+        const id = await createOne(siteType);
+        router.push(`/dashboard/builder/${id}`);
       }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo crear el sitio web. Intentá de nuevo.");
     } finally {
       creatingWebsiteRef.current = false;
       setCreatingWebsite(false);

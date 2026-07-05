@@ -6,6 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -176,7 +177,7 @@ export default function ResultsPage() {
     else { setShowHistory(true); fetchHistory(); }
   }, []);
 
-  async function createWebsiteFromBiz(businessId: string, businessName: string) {
+  async function createWebsiteFromBiz(businessId: string, businessName: string, siteType: "paralux" | "biolink" | "both" = "paralux") {
     /* Guard síncrono contra doble-submit (evita sitios duplicados). */
     if (creatingWebsiteRef.current) return;
     creatingWebsiteRef.current = true;
@@ -184,18 +185,28 @@ export default function ResultsPage() {
     try {
       const headers = await getAuthHeaders();
       headers["Content-Type"] = "application/json";
-      const res = await fetch("/api/websites", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ name: `Website ${businessName}`, businessId }),
-      });
-      if (res.ok) {
-        const website = await res.json();
-        router.push(`/dashboard/builder/${website.id}`);
+      const createOne = async (type: "paralux" | "biolink") => {
+        const name = type === "biolink" ? `Biolink ${businessName}` : `Website ${businessName}`;
+        const res = await fetch("/api/websites", {
+          method: "POST", headers,
+          body: JSON.stringify({ name, businessId, siteType: type }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "No se pudo crear el sitio. Intentá de nuevo.");
+        }
+        return (await res.json()).id as string;
+      };
+      if (siteType === "both") {
+        await createOne("paralux");
+        const bioId = await createOne("biolink");
+        router.push(`/dashboard/builder/${bioId}`);
       } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "No se pudo crear el sitio web. Intentá de nuevo.");
+        const id = await createOne(siteType);
+        router.push(`/dashboard/builder/${id}`);
       }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo crear el sitio web. Intentá de nuevo.");
     } finally {
       creatingWebsiteRef.current = false;
       setCreatingWebsiteId(null);
@@ -720,16 +731,25 @@ export default function ResultsPage() {
                                   {t("addedToCrm")}
                                 </Badge>
                               )}
-                              <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-500 hover:text-zinc-900"
-                                disabled={creatingWebsiteId === biz.id}
-                                onClick={(e) => { e.stopPropagation(); createWebsiteFromBiz(biz.id, biz.name); }}>
-                                {creatingWebsiteId === biz.id ? (
-                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Globe className="mr-1 h-3 w-3" />
-                                )}
-                                {creatingWebsiteId === biz.id ? "Creando…" : "Website"}
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  disabled={creatingWebsiteId === biz.id}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex h-7 items-center rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-60"
+                                >
+                                  {creatingWebsiteId === biz.id ? (
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Globe className="mr-1 h-3 w-3" />
+                                  )}
+                                  {creatingWebsiteId === biz.id ? "Creando…" : "Sitio"}
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenuItem onClick={() => createWebsiteFromBiz(biz.id, biz.name, "paralux")}>Landing</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => createWebsiteFromBiz(biz.id, biz.name, "biolink")}>Link in bio</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => createWebsiteFromBiz(biz.id, biz.name, "both")}>Ambos</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>

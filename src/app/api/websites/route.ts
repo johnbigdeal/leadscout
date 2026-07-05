@@ -59,14 +59,88 @@ async function searchUnsplashImages(query: string, count: number = 8): Promise<A
   }
 }
 
+/* Deriva el `data` de un sitio "link in bio" a partir del negocio y sus redes,
+   reusando la misma info del lead que la landing (nombre, WhatsApp, web, redes,
+   email, Maps, reseña). Devuelve la forma que consumen BioLinkBuilder y
+   generateBiolinkHTML. */
+function buildBiolinkData(
+  biz: any,
+  socialsArr: { platform: string; url: string | null }[],
+  phoneDigits: string,
+  categoryEs: string,
+  images: any[],
+  copy: any,
+): Record<string, any> {
+  const social = (p: string) => socialsArr.find((s) => s.platform === p)?.url || "";
+  const instagram = social("instagram");
+  const facebook = social("facebook");
+  const linkedin = social("linkedin");
+  const tiktok = social("tiktok");
+  const youtube = social("youtube");
+  const website = biz.website || "";
+  const email = biz.email || "";
+  const waUrl = phoneDigits ? `https://wa.me/${phoneDigits}` : "";
+  const mapsUrl = biz.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${biz.name || ""} ${biz.address}`)}`
+    : "";
+  const reviewUrl = biz.placeId
+    ? `https://search.google.com/local/writereview?placeid=${biz.placeId}`
+    : "";
+  const bio = copy && typeof copy.tagline === "string" && copy.tagline.trim()
+    ? copy.tagline.trim()
+    : categoryEs || "";
+
+  const links: { id: string; title: string; url: string; icon: string }[] = [];
+  let n = 0;
+  const add = (title: string, url: string, icon: string) => {
+    if (url) links.push({ id: `l${++n}`, title, url, icon });
+  };
+  add("WhatsApp", waUrl, "whatsapp");
+  add("Sitio web", website, "globe");
+  add("Instagram", instagram, "instagram");
+  add("Facebook", facebook, "facebook");
+  add("TikTok", tiktok, "tiktok");
+  add("YouTube", youtube, "youtube");
+  add("LinkedIn", linkedin, "linkedin");
+  add("Llamar", biz.phone ? `tel:${biz.phone}` : "", "phone");
+  add("Email", email ? `mailto:${email}` : "", "mail");
+  add("Ver en Google Maps", mapsUrl, "map");
+  add("Dejá tu reseña", reviewUrl, "star");
+
+  return {
+    siteType: "biolink",
+    businessName: biz.name || "Mi negocio",
+    avatar: images[0]?.url || "",
+    bio,
+    links,
+    socials: {
+      instagram, facebook, whatsapp: waUrl, tiktok, youtube, linkedin,
+      x: "", website, email: email ? `mailto:${email}` : "",
+    },
+    dark: false,
+    bgType: "solid",
+    bgColor1: "#f4f4f5",
+    bgColor2: "#e4e4e7",
+    bgAngle: 135,
+    accent: "#111827",
+    textColor: "#111827",
+    buttonTextColor: "#ffffff",
+    buttonStyle: "fill",
+    buttonRadius: 14,
+    font: "system",
+    theme: "minimal",
+  };
+}
+
 /* POST /api/websites */
 export async function POST(request: Request) {
   const result = await requireAuth(request);
   if (result.response) return result.response;
   const ctx = result.ctx;
 
-  const { name, leadId, businessId } = await request.json();
+  const { name, leadId, businessId, siteType: rawSiteType } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
+  const siteType = rawSiteType === "biolink" ? "biolink" : "paralux";
 
   let initialData: Record<string, any> = {};
   let resolvedBusinessId = businessId;
@@ -84,6 +158,11 @@ export async function POST(request: Request) {
   /* Un sitio por lead o por negocio: si ya existe uno (borrador o publicado)
      para este lead O este negocio, se devuelve en vez de crear un duplicado.
      Cubre el botón del CRM (manda leadId) y el de resultados (solo businessId). */
+  /* El dedup es por TIPO: un lead/negocio puede tener a la vez una landing y un
+     biolink. Los sitios viejos (sin data.siteType) se consideran "paralux". */
+  const typeCond = siteType === "biolink"
+    ? sql`${websites.data}->>'siteType' = 'biolink'`
+    : sql`(${websites.data}->>'siteType' IS NULL OR ${websites.data}->>'siteType' = 'paralux')`;
   async function findExisting() {
     const conds = [
       leadId ? eq(websites.leadId, leadId) : null,
@@ -93,7 +172,7 @@ export async function POST(request: Request) {
     const [existing] = await db
       .select()
       .from(websites)
-      .where(and(eq(websites.orgId, ctx.orgId), conds.length === 1 ? conds[0] : or(...conds)))
+      .where(and(eq(websites.orgId, ctx.orgId), conds.length === 1 ? conds[0] : or(...conds), typeCond))
       .limit(1);
     return existing ?? null;
   }
@@ -169,6 +248,10 @@ export async function POST(request: Request) {
         phoneDigits ? { type: "whatsapp", url: `https://wa.me/${phoneDigits}` } : null,
       ].filter(Boolean);
 
+      if (siteType === "biolink") {
+        /* Link in bio: reusa la misma info del lead con otra forma de `data`. */
+        initialData = buildBiolinkData(biz, socials, phoneDigits, categoryEs, images, copy);
+      } else {
       /* Base 100% derivada del lead. Cubre TODOS los campos de texto para que el
          builder no rellene ninguno con el contenido dummy de DEFAULT, incluso si
          la IA no está disponible. La IA (abajo) reemplaza el copy de marketing. */
@@ -260,13 +343,14 @@ export async function POST(request: Request) {
           if (cleaned.length) initialData.services = cleaned;
         }
       }
+      }
     }
   }
 
   /* Re-check + insert atómico bajo advisory lock por objetivo (lead/negocio):
      si dos requests paralelas generaron a la vez, la segunda encuentra el
      sitio recién creado y lo devuelve en vez de duplicar. */
-  const lockKey = `web:${ctx.orgId}:${leadId || resolvedBusinessId || name.trim()}`;
+  const lockKey = `web:${ctx.orgId}:${siteType}:${leadId || resolvedBusinessId || name.trim()}`;
   const website = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 

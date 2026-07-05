@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { websites, customDomains, subscriptions, memberships, profiles } from "@/lib/db/schema";
 import { eq, or, and } from "drizzle-orm";
 import { generateHTML } from "@/lib/paralux/generate-html";
+import { generateBiolinkHTML } from "@/lib/biolink/generate-biolink-html";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,9 @@ export async function GET(
   }
   const showBadge = isPro ? data.hideBadge !== true : true;
 
-  const html = generateHTML(data, { showBadge, allowCustomCode: isPro });
+  const html = data.siteType === "biolink"
+    ? generateBiolinkHTML(data, { showBadge, allowCustomCode: isPro })
+    : generateHTML(data, { showBadge, allowCustomCode: isPro });
 
   return new Response(html, {
     status: 200,

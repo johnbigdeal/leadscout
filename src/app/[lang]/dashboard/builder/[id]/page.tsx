@@ -5,6 +5,7 @@ import { useRouter } from "@/i18n/navigation";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ParaluxBuilder from "@/components/ParaluxBuilder";
+import BioLinkBuilder from "@/components/BioLinkBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -365,21 +366,26 @@ export default function BuilderPage() {
         </div>
       </div>
 
-      {/* Builder */}
+      {/* Builder — editor según el tipo de sitio (landing Paralux o link-in-bio) */}
       <div className="flex-1 overflow-hidden">
-        <ParaluxBuilder
-          initialData={builderData}
-          onChange={(data: any, html: string) => {
-            setBuilderData(data);
-            setCurrentHtml(html);
-            scheduleSave(data, html);
-          }}
-          device={device}
-          onDeviceChange={setDevice}
-          showAI={showAI}
-          onShowAIChange={setShowAI}
-          plan={plan}
-        />
+        {(() => {
+          const Editor = builderData?.siteType === "biolink" ? BioLinkBuilder : ParaluxBuilder;
+          return (
+            <Editor
+              initialData={builderData}
+              onChange={(data: any, html: string) => {
+                setBuilderData(data);
+                setCurrentHtml(html);
+                scheduleSave(data, html);
+              }}
+              device={device}
+              onDeviceChange={setDevice}
+              showAI={showAI}
+              onShowAIChange={setShowAI}
+              plan={plan}
+            />
+          );
+        })()}
       </div>
 
       {/* Publish dialog */}

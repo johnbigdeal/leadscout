@@ -26,9 +26,12 @@ type Website = {
   subdomain: string | null;
   domain: string | null;
   publishedUrl: string | null;
+  data?: { siteType?: string } | null;
   createdAt: string;
   updatedAt: string;
 };
+
+const isBiolink = (w: Website) => w.data?.siteType === "biolink";
 
 export default function WebsitesPage() {
   const router = useRouter();
@@ -36,6 +39,7 @@ export default function WebsitesPage() {
   const [loading, setLoading] = useState(true);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"paralux" | "biolink">("paralux");
   const [creating, setCreating] = useState(false);
 
   async function fetchWebsites() {
@@ -58,7 +62,7 @@ export default function WebsitesPage() {
       const res = await fetch("/api/websites", {
         method: "POST",
         headers,
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({ name: newName.trim(), siteType: newType }),
       });
       if (res.ok) {
         const website = await res.json();
@@ -142,9 +146,14 @@ export default function WebsitesPage() {
                     {w.domain || "Sin dominio asignado"}
                   </p>
                 </div>
-                <Badge variant={w.status === "published" ? "default" : "secondary"} className="text-[10px]">
-                  {w.status === "published" ? "Publicado" : "Borrador"}
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant={w.status === "published" ? "default" : "secondary"} className="text-[10px]">
+                    {w.status === "published" ? "Publicado" : "Borrador"}
+                  </Badge>
+                  <Badge variant="outline" className={`text-[10px] ${isBiolink(w) ? "border-violet-200 bg-violet-50 text-violet-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}>
+                    {isBiolink(w) ? "Link in bio" : "Landing"}
+                  </Badge>
+                </div>
               </div>
 
               <div className="mt-4 flex items-center gap-2">
@@ -187,6 +196,27 @@ export default function WebsitesPage() {
             <DialogTitle>Nuevo Website</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Tipo
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: "paralux", label: "Landing", desc: "Sitio web completo" },
+                  { id: "biolink", label: "Link in bio", desc: "Estilo Linktree" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setNewType(opt.id)}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${newType === opt.id ? "border-primary bg-primary/5" : "border-zinc-200 hover:border-zinc-300"}`}
+                  >
+                    <span className="block text-sm font-medium text-zinc-900">{opt.label}</span>
+                    <span className="block text-xs text-zinc-500">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Nombre
