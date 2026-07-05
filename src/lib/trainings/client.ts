@@ -1,4 +1,5 @@
 import { getAuthHeaders } from "@/lib/supabase/auth-headers";
+import { upload } from "@vercel/blob/client";
 
 export type Lesson = {
   id: string;
@@ -65,10 +66,13 @@ export const deleteLesson = (id: string) =>
   send("DELETE", `/api/trainings/lessons/${id}`);
 
 export async function uploadFile(file: File): Promise<string> {
-  const headers = await getAuthHeaders();
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/upload", { method: "POST", headers, body: fd });
-  const data = await jsonOrThrow(res);
-  return data.url as string;
+  const blob = await upload(`lessons/${file.name}`, file, {
+    access: "public",
+    handleUploadUrl: "/api/upload",
+    headers: await getAuthHeaders(),
+    clientPayload: JSON.stringify({ kind: "lesson" }),
+    contentType: file.type,
+    multipart: true, // PDFs de lecciones pueden ser grandes → subida por partes con reintentos
+  });
+  return blob.url;
 }

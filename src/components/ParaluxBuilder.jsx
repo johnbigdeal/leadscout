@@ -6,6 +6,7 @@ import {
 import { generateHTML } from "@/lib/paralux/generate-html";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { upload } from "@vercel/blob/client";
 
 /* Header Authorization para las rutas /api/* protegidas con requireAuth. */
 async function authHeaders() {
@@ -939,12 +940,14 @@ function ImageField({ label, value, onChange, hint }) {
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", headers: { ...(await authHeaders()) }, body: formData });
-      if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
-      const { url: uploadedUrl } = await res.json();
-      updateUrl(uploadedUrl);
+      const blob = await upload(`paralux/${file.name}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        headers: await authHeaders(),
+        clientPayload: JSON.stringify({ kind: "image" }),
+        contentType: file.type,
+      });
+      updateUrl(blob.url);
     } catch (err) {
       console.error("Upload failed", err);
       const msg = "No se pudo subir la imagen. Probá con otra.";

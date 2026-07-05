@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, X, Loader2, Zap, Globe, Search, LayoutDashboard, Crown, Smartphone, Copy, Upload, Clock } from "lucide-react";
+import { upload } from "@vercel/blob/client";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
@@ -103,11 +104,14 @@ export default function PlansPage() {
     setSinpeError("");
     try {
       const headers = await getAuthHeaders();
-      const fd = new FormData();
-      fd.append("file", sinpeFile);
-      const upRes = await fetch("/api/upload", { method: "POST", headers, body: fd });
-      if (!upRes.ok) throw new Error("No se pudo subir el archivo.");
-      const { url } = await upRes.json();
+      const blob = await upload(`sinpe/${sinpeFile.name}`, sinpeFile, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        headers,
+        clientPayload: JSON.stringify({ kind: "proof" }),
+        contentType: sinpeFile.type,
+      });
+      const url = blob.url;
 
       const jsonHeaders = { ...headers, "Content-Type": "application/json" };
       const res = await fetch("/api/billing/sinpe", {
