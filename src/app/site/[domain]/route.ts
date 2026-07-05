@@ -69,7 +69,7 @@ export async function GET(
   const showBadge = isPro ? data.hideBadge !== true : true;
 
   const html = data.siteType === "biolink"
-    ? generateBiolinkHTML(data, { showBadge, allowCustomCode: isPro })
+    ? generateBiolinkHTML(data, { showBadge, allowCustomCode: isPro, allowVerified: isPro, websiteId: site.id })
     : generateHTML(data, { showBadge, allowCustomCode: isPro });
 
   return new Response(html, {

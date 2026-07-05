@@ -116,10 +116,17 @@ const SOCIAL_META: Array<{ key: string; icon: string; label: string }> = [
    ========================================================================= */
 export function generateBiolinkHTML(
   d: Record<string, any>,
-  opts: { showBadge?: boolean; allowCustomCode?: boolean } = {},
+  opts: { showBadge?: boolean; allowCustomCode?: boolean; allowVerified?: boolean; websiteId?: string } = {},
 ): string {
   /* Insignia "Hecho con LeadScout": visible por defecto (igual que Paralux). */
   const showBadge = opts.showBadge !== false;
+
+  /* Badge verificado (✓ azul junto al nombre): solo si el llamador lo habilita
+     (plan Pro, resuelto server-side) y el usuario lo activó. */
+  const verified = opts.allowVerified === true && d.verified === true;
+
+  /* Id del sitio (para el beacon de conteo de clics). "" en el preview del builder. */
+  const websiteId = typeof opts.websiteId === "string" ? opts.websiteId : "";
 
   /* Código HTML custom (head/body/footer). Solo se inyecta si el llamador lo
      habilita (plan Pro). Se interpola CRUDO, sin esc(): es HTML del usuario. */
@@ -181,7 +188,7 @@ export function generateBiolinkHTML(
       const icon = iconSVG(String(l?.icon ?? "link"));
       /* delay escalonado para la animación de entrada */
       const delay = 80 + i * 70;
-      return `<a class="bl-link" href="${escAttr(url || "#")}" target="_blank" rel="noopener" style="animation-delay:${delay}ms"><span class="bl-link-ico">${icon}</span><span class="bl-link-txt">${esc(title || url)}</span><span class="bl-link-ico bl-link-ico--end" aria-hidden="true">${iconSVG("link")}</span></a>`;
+      return `<a class="bl-link" href="${escAttr(url || "#")}" target="_blank" rel="noopener" data-lid="${escAttr(String(l.id ?? ""))}" style="animation-delay:${delay}ms"><span class="bl-link-ico">${icon}</span><span class="bl-link-txt">${esc(title || url)}</span><span class="bl-link-ico bl-link-ico--end" aria-hidden="true">${iconSVG("link")}</span></a>`;
     })
     .join("\n      ");
 
@@ -278,6 +285,7 @@ ${animatedCSS}
   color:${escAttr(textColor)};
   animation:bl-in .6s ease .05s both;
 }
+.bl-verified{display:inline-block;vertical-align:-3px;margin-left:4px;}
 .bl-bio{
   margin-top:8px;font-size:15px;max-width:34ch;
   color:${escAttr(textColor)};opacity:.82;
@@ -351,9 +359,21 @@ a:focus-visible,.bl-link:focus-visible,.bl-social:focus-visible{
   /* =========================================================================
      JS mínimo inline: mejora progresiva del foco por teclado.
      ========================================================================= */
+  const clickTracker = websiteId
+    ? "var __w=" + JSON.stringify(websiteId) + ";" +
+      "document.addEventListener('click',function(e){" +
+      "var a=e.target.closest&&e.target.closest('.bl-link[data-lid]');if(!a)return;" +
+      "var lid=a.getAttribute('data-lid');if(!lid)return;" +
+      "var body=JSON.stringify({w:__w,l:lid});" +
+      "try{if(navigator.sendBeacon){navigator.sendBeacon('/api/biolink/click',new Blob([body],{type:'application/json'}));}" +
+      "else{fetch('/api/biolink/click',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true});}}catch(err){}" +
+      "});"
+    : "";
+
   const js =
     "document.addEventListener('keydown',function(e){if(e.key==='Tab'){document.body.classList.add('bl-kb');}});" +
-    "document.addEventListener('mousedown',function(){document.body.classList.remove('bl-kb');});";
+    "document.addEventListener('mousedown',function(){document.body.classList.remove('bl-kb');});" +
+    clickTracker;
 
   /* =========================================================================
      DOCUMENTO
@@ -382,7 +402,7 @@ ${customHead}
 ${customBody}
 <main class="bl-card">
   ${avatarHTML}
-  <h1 class="bl-name">${esc(businessName)}</h1>
+  <h1 class="bl-name">${esc(businessName)}${verified ? ` <svg class="bl-verified" viewBox="0 0 24 24" width="20" height="20" role="img" aria-label="Verificado"><path fill="#1d9bf0" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-3.998-3.998-3.998-.494 0-.965.084-1.4.238C14.94 2.465 13.57 1.59 11.99 1.59S9.038 2.465 8.39 3.74c-.435-.154-.906-.238-1.4-.238-2.208 0-3.998 1.79-3.998 3.998 0 .495.084.965.238 1.4-1.272.65-2.147 2.02-2.147 3.6 0 1.58.875 2.95 2.147 3.6-.154.435-.238.906-.238 1.4 0 2.21 1.79 3.998 3.998 3.998.494 0 .965-.084 1.4-.238.65 1.272 2.02 2.147 3.6 2.147s2.95-.875 3.6-2.147c.435.154.906.238 1.4.238 2.208 0 3.998-1.79 3.998-3.998 0-.494-.084-.965-.238-1.4 1.273-.65 2.148-2.02 2.148-3.6z"/><path fill="#fff" d="M9.8 15.9l-3-3 1.4-1.4 1.6 1.6 4.2-4.2 1.4 1.4z"/></svg>` : ""}</h1>
   ${bio ? `<p class="bl-bio">${esc(bio)}</p>` : ""}
   ${linksHTML ? `<div class="bl-links">\n      ${linksHTML}\n    </div>` : ""}
   ${socialsBlock}

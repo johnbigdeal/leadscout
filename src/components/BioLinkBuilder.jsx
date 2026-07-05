@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   User, Link2, Share2, Palette, Sparkles, Plus, Trash2, GripVertical,
   Globe, MessageCircle, Camera, ThumbsUp, Music2, Play, Briefcase,
   AtSign, Phone, Mail, MapPin, Star, Calendar, Check, ChevronDown, Layout,
+  Download, Upload,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, closestCenter, useSensor, useSensors,
@@ -219,15 +220,45 @@ export default function BioLinkBuilder({
   const [preview, setPreview] = useState("");
   /* Redes abiertas manualmente (para mostrar el input aunque su URL esté vacía). */
   const [openSocials, setOpenSocials] = useState(() => new Set());
+  /* Ref al input file oculto usado para importar la configuración JSON. */
+  const importInputRef = useRef(null);
 
   /* set(k,v): patch superficial del estado, idéntico a ParaluxBuilder. */
   const set = (k, v) => setD((o) => ({ ...o, [k]: v }));
+
+  /* ---------- exportar / importar configuración (JSON) ---------- */
+  /* Descarga el objeto `d` completo como archivo biolink-config.json. */
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "biolink-config.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  /* Lee un archivo JSON y reemplaza el estado (siempre siteType: "biolink"). */
+  const importJSON = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      setD({ ...DEFAULT, ...parsed, siteType: "biolink" });
+      toast.success("Configuración importada");
+    } catch {
+      toast.error("Archivo inválido");
+    } finally {
+      /* Reseteo el value para permitir reimportar el mismo archivo. */
+      if (e.target) e.target.value = "";
+    }
+  };
 
   /* Preview con debounce (~280ms) + emisión de onChange(d, html). */
   useEffect(() => {
     const t = setTimeout(() => {
       const showBadge = plan === "pro" ? d.hideBadge !== true : true;
-      const html = generateBiolinkHTML(d, { showBadge, allowCustomCode: plan === "pro" });
+      const html = generateBiolinkHTML(d, { showBadge, allowCustomCode: plan === "pro", allowVerified: plan === "pro" });
       setPreview(html);
       if (onChange) onChange(d, html);
     }, 280);
@@ -282,6 +313,32 @@ export default function BioLinkBuilder({
         <div className="px-body">
           {/* ================= panel de edición ================= */}
           <div className="px-panel">
+            {/* mini-toolbar: exportar / importar configuración (JSON) — para todos */}
+            <div className="bl-toolbar">
+              <button
+                type="button"
+                className="px-btn bl-toolbtn"
+                onClick={exportJSON}
+                title="Descargar la configuración como JSON"
+              >
+                <Download size={14} /> Exportar JSON
+              </button>
+              <button
+                type="button"
+                className="px-btn bl-toolbtn"
+                onClick={() => importInputRef.current?.click()}
+                title="Cargar una configuración desde un archivo JSON"
+              >
+                <Upload size={14} /> Importar JSON
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={importJSON}
+              />
+            </div>
             <div className="px-tabs">
               {TABS.map((t) => {
                 const Icon = t.icon;
@@ -322,6 +379,39 @@ export default function BioLinkBuilder({
                     ph="Contá en pocas palabras qué hacés. Podés usar emojis."
                     hint="Aparece debajo del nombre. Ideal 1-2 frases."
                   />
+
+                  {/* Perfil verificado (Pro) — mismo gating que la insignia */}
+                  <div className="px-field">
+                    <span className="px-label">
+                      {"Perfil verificado ✓"}
+                      {plan !== "pro" && (
+                        <span style={{ marginLeft: 6, fontSize: ".7rem", opacity: 0.7 }}>🔒 Pro</span>
+                      )}
+                    </span>
+                    <div className="px-toggle">
+                      <span style={{ fontSize: ".88rem" }}>
+                        {plan === "pro" && d.verified ? "Activado" : "Desactivado"}
+                      </span>
+                      <button
+                        type="button"
+                        className={`px-switch ${plan === "pro" && d.verified ? "on" : ""}`}
+                        aria-pressed={plan === "pro" && !!d.verified}
+                        aria-label="Perfil verificado"
+                        disabled={plan !== "pro"}
+                        onClick={() => { if (plan === "pro") set("verified", !d.verified); }}
+                        style={{
+                          border: "none", padding: 0,
+                          cursor: plan === "pro" ? "pointer" : "not-allowed",
+                          opacity: plan === "pro" ? 1 : 0.55,
+                        }}
+                      >
+                        <i />
+                      </button>
+                    </div>
+                    <p className="px-hint">
+                      Muestra un check azul junto al nombre (como en redes). Exclusivo de Pro.
+                    </p>
+                  </div>
                 </>
               )}
 
@@ -334,9 +424,12 @@ export default function BioLinkBuilder({
                       {(d.links || []).length}
                     </span>
                   </div>
-                  <p className="px-hint" style={{ marginTop: -6, marginBottom: 14 }}>
+                  <p className="px-hint" style={{ marginTop: -6, marginBottom: 6 }}>
                     Arrastrá con <GripVertical size={12} style={{ verticalAlign: "-2px" }} /> para
                     reordenar. Cada botón lleva a su enlace.
+                  </p>
+                  <p className="px-hint" style={{ marginTop: 0, marginBottom: 14 }}>
+                    Los clics se cuentan en el sitio publicado.
                   </p>
 
                   <DndContext
@@ -352,6 +445,7 @@ export default function BioLinkBuilder({
                         <SortableLink
                           key={l.id}
                           link={l}
+                          count={(d.clickCounts || {})[l.id] || 0}
                           onUpd={(k, v) => updLink(l.id, k, v)}
                           onDel={() => delLink(l.id)}
                         />
@@ -674,8 +768,9 @@ export default function BioLinkBuilder({
    SUB-COMPONENTES
    ========================================================================= */
 
-/* Enlace ordenable (drag & drop con dnd-kit). */
-function SortableLink({ link, onUpd, onDel }) {
+/* Enlace ordenable (drag & drop con dnd-kit).
+   `count` es de solo lectura (viene de d.clickCounts, lo escribe el sitio publicado). */
+function SortableLink({ link, count = 0, onUpd, onDel }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({ id: link.id });
   const [iconOpen, setIconOpen] = useState(false);
@@ -692,16 +787,23 @@ function SortableLink({ link, onUpd, onDel }) {
   return (
     <div className="px-rep" ref={setNodeRef} style={style}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        {/* asa de arrastre */}
-        <button
-          type="button"
-          className="bl-grip"
-          aria-label="Arrastrar para reordenar"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </button>
+        {/* asa de arrastre + chip de clics (solo lectura) */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
+          <button
+            type="button"
+            className="bl-grip"
+            aria-label="Arrastrar para reordenar"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={16} />
+          </button>
+          {count > 0 && (
+            <span className="bl-count" title="Clics contados en el sitio publicado">
+              {count} clics
+            </span>
+          )}
+        </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="px-field" style={{ marginBottom: 10 }}>
@@ -999,8 +1101,12 @@ const BUILDER_CSS = `
 .px-stage{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   background:radial-gradient(circle at 50% 0%,#1a1922,#0e0d12);padding:26px;overflow:auto}
 .px-frame{background:#000;border:1px solid var(--line);overflow:hidden;
-  box-shadow:0 40px 90px rgba(0,0,0,.5);transition:width .35s,height .35s;position:relative}
-.px-frame iframe{width:100%;height:100%;border:none;display:block;background:#fff}
+  box-shadow:0 40px 90px rgba(0,0,0,.5);transition:width .35s,height .35s;position:relative;
+  padding:8px;border-color:#000}
+/* muesca (notch) tipo teléfono: barra negra redondeada centrada arriba */
+.px-frame::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:120px;height:22px;background:#000;border-radius:0 0 14px 14px;z-index:2;pointer-events:none}
+.px-frame iframe{width:100%;height:100%;border:none;display:block;background:#fff;border-radius:22px}
 
 /* bio-link specific */
 .bl-grip{background:none;border:none;color:#6a6776;cursor:grab;padding:6px 2px;border-radius:6px;
@@ -1020,5 +1126,12 @@ const BUILDER_CSS = `
   background:var(--ink-3);border:1px solid var(--line);display:flex;align-items:center;
   justify-content:center;color:var(--lo)}
 .bl-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* mini-toolbar exportar/importar */
+.bl-toolbar{display:flex;gap:8px;padding:12px 12px 0}
+.bl-toolbtn{flex:1;justify-content:center;padding:8px 10px;font-size:.78rem}
+/* chip de clics (solo lectura) junto al asa de arrastre */
+.bl-count{display:inline-block;font-size:.62rem;line-height:1;color:var(--lo);background:var(--ink-3);
+  border:1px solid var(--line);border-radius:6px;padding:3px 5px;white-space:nowrap;text-align:center}
 @media(max-width:900px){.px-panel{width:330px;flex-basis:330px}}
 `;

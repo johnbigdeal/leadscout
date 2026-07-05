@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Globe, Save, Loader2, Monitor, Smartphone, Sparkles, Copy, Check, ExternalLink, Crown, Zap, Download, CloudAlert, RefreshCw } from "lucide-react";
+import QRCode from "qrcode";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { toast } from "sonner";
 
@@ -46,6 +47,15 @@ export default function BuilderPage() {
   const [copied, setCopied] = useState(false);
   const [siteReady, setSiteReady] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  /* QR del sitio publicado (generado en cliente, sin llamadas externas). */
+  useEffect(() => {
+    if (!publishedUrl) { setQrDataUrl(""); return; }
+    QRCode.toDataURL(publishedUrl, { width: 240, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(""));
+  }, [publishedUrl]);
   const [plan, setPlan] = useState<string>("free");
   const [publishMode, setPublishMode] = useState<"subdomain" | "custom">("subdomain");
   const [customDomain, setCustomDomain] = useState("");
@@ -584,6 +594,22 @@ export default function BuilderPage() {
                 </p>
               )}
             </div>
+
+            {qrDataUrl && (
+              <div className="flex flex-col items-center gap-2 rounded-lg border border-zinc-200 bg-white p-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Código QR</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="Código QR del sitio" className="h-40 w-40" />
+                <a
+                  href={qrDataUrl}
+                  download="qr-sitio.png"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Descargar QR
+                </a>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button

@@ -60,7 +60,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { data, html, name, status } = await request.json();
 
   const updateData: Partial<typeof websites.$inferInsert> = {};
-  if (data !== undefined) updateData.data = data;
+  if (data !== undefined) {
+    /* Preservar el contador de clics del biolink (data.clickCounts): lo escribe el
+       endpoint público /api/biolink/click; el guardado del builder no debe pisarlo. */
+    const [ex] = await db
+      .select({ data: websites.data })
+      .from(websites)
+      .where(and(eq(websites.id, id), eq(websites.orgId, ctx.orgId)))
+      .limit(1);
+    const cc = (ex?.data as any)?.clickCounts;
+    updateData.data = cc ? { ...data, clickCounts: cc } : data;
+  }
   if (html !== undefined) updateData.html = html;
   if (name !== undefined) updateData.name = name;
   if (status !== undefined) updateData.status = status;
