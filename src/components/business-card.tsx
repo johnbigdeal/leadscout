@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair, TrendingUp } from "lucide-react";
+import { Phone, Globe, MapPin, Star, MessageCircle, ExternalLink, Award, Map, Mail, Crosshair, TrendingUp, ShieldAlert } from "lucide-react";
 import { reviewsInsight } from "@/lib/reviews-insight";
-import { getIdentityBadges } from "@/lib/business-attributes";
+import { getIdentityBadges, getGmbUnclaimedBadge } from "@/lib/business-attributes";
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -77,6 +77,15 @@ export function BusinessCard({ business, onAddToCrm }: { business: Business; onA
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="truncate text-base font-semibold text-foreground">{business.name}</h3>
+                  {(() => {
+                    const gmb = getGmbUnclaimedBadge(business.rawJson);
+                    return gmb ? (
+                      <Badge variant="outline" className={`flex items-center gap-1 text-[10px] font-medium ${gmb.className}`}>
+                        <ShieldAlert className="h-3 w-3" />
+                        {gmb.label}
+                      </Badge>
+                    ) : null;
+                  })()}
                   {getIdentityBadges(business.rawJson).map((b) => (
                     <Badge key={b.key} variant="outline" className={`text-[10px] font-medium ${b.className}`}>
                       {b.label}

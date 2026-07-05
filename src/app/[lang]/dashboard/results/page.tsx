@@ -14,7 +14,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink, Loader2 } from "lucide-react";
+import { Phone, Globe, MapPin, Plus, Clock, Filter, X, Search, MessageCircle, Map, Mail, Download, ChevronLeft, ChevronRight, Crosshair, SlidersHorizontal, History, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
+import { isGmbUnclaimed } from "@/lib/business-attributes";
 import { BusinessCard, type Business } from "@/components/business-card";
 import { matchPipeline } from "@/lib/pipeline-match";
 import { toast } from "sonner";
@@ -41,13 +42,13 @@ type SearchHistoryItem = {
 
 type Filters = {
   minScore: number; hasWebsite: "all" | "yes" | "no"; hasPhone: boolean; hasWhatsapp: boolean;
-  inCrm: "all" | "yes" | "no"; nameQuery: string;
+  soloUnclaimed: boolean; inCrm: "all" | "yes" | "no"; nameQuery: string;
 };
 
 type PipelineOption = { id: string; name: string; category: string | null; stages: string[] };
 type CategoryOption = { id: string; name: string; color: string };
 
-const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, inCrm: "all", nameQuery: "" };
+const defaultFilters: Filters = { minScore: 0, hasWebsite: "all", hasPhone: false, hasWhatsapp: false, soloUnclaimed: false, inCrm: "all", nameQuery: "" };
 const PER_PAGE_OPTIONS = [25, 50];
 
 function getSocial(biz: Business, platform: string): string | null {
@@ -117,6 +118,7 @@ export default function ResultsPage() {
     if (filters.hasWebsite !== "all") n++;
     if (filters.hasPhone) n++;
     if (filters.hasWhatsapp) n++;
+    if (filters.soloUnclaimed) n++;
     if (filters.inCrm !== "all") n++;
     if (filters.nameQuery) n++;
     return n;
@@ -355,6 +357,7 @@ export default function ResultsPage() {
         if (filters.hasWebsite === "no" && biz.hasWebsite) return false;
         if (filters.hasPhone && !biz.phone) return false;
         if (filters.hasWhatsapp && !biz.isWhatsapp) return false;
+        if (filters.soloUnclaimed && !isGmbUnclaimed(biz.rawJson)) return false;
         const inCrm = leadIds.has(biz.id);
         if (filters.inCrm === "yes" && !inCrm) return false;
         if (filters.inCrm === "no" && inCrm) return false;
@@ -521,6 +524,10 @@ export default function ResultsPage() {
                     <Checkbox checked={filters.hasWhatsapp} onCheckedChange={(c) => updateFilter("hasWhatsapp", c)} />
                     {t("hasWhatsapp")}
                   </label>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                    <Checkbox checked={filters.soloUnclaimed} onCheckedChange={(c) => updateFilter("soloUnclaimed", c)} />
+                    Sin reclamar
+                  </label>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground">CRM</span>
                     <select value={filters.inCrm} onChange={(e) => updateFilter("inCrm", e.target.value as Filters["inCrm"])}
@@ -616,7 +623,15 @@ export default function ResultsPage() {
                             </div>
                           </TableCell>
                           <TableCell className="p-3 font-medium text-foreground">
-                            <span className="block max-w-[180px] truncate">{biz.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="block max-w-[180px] truncate">{biz.name}</span>
+                              {isGmbUnclaimed(biz.rawJson) && (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700" title="Ficha de Google sin reclamar">
+                                  <ShieldAlert className="h-3 w-3" />
+                                  Sin reclamar
+                                </span>
+                              )}
+                            </div>
                             {biz.category && <span className="text-xs text-muted-foreground">{biz.category}</span>}
                           </TableCell>
                           <TableCell className="p-3">

@@ -91,3 +91,21 @@ export function getIdentityBadges(rawJson: unknown): IdentityBadge[] {
 export function isLatinoOwned(rawJson: unknown): boolean {
   return getIdentityBadges(rawJson).some((b) => b.key === "latino");
 }
+
+/**
+ * ¿La ficha de Google del negocio está SIN reclamar? El actor de Apify devuelve
+ * `claimThisBusiness: true` cuando Google ofrece "¿Es tuyo este negocio?" — es
+ * decir, el dueño no gestiona la ficha (señal fuerte de oportunidad). El campo es
+ * top-level del item, no vive dentro de `additionalInfo`.
+ */
+export function isGmbUnclaimed(rawJson: unknown): boolean {
+  if (!rawJson || typeof rawJson !== "object") return false;
+  return (rawJson as Record<string, unknown>).claimThisBusiness === true;
+}
+
+/** Badge "Google sin reclamar" (o null) — mismo shape que getIdentityBadges. */
+export function getGmbUnclaimedBadge(rawJson: unknown): IdentityBadge | null {
+  return isGmbUnclaimed(rawJson)
+    ? { key: "gmb-unclaimed", label: "Google sin reclamar", className: "border-orange-200 bg-orange-50 text-orange-700" }
+    : null;
+}

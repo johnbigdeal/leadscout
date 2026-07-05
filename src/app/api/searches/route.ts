@@ -9,6 +9,7 @@ import { eq, and, gt, or, ilike, sql } from "drizzle-orm";
 import { startGooglePlacesSearch, searchInstagram, scrapeLinkedInComments, apifyClient } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
 import { scrapeWebsiteContact } from "@/lib/integrations/scraper";
+import { isGmbUnclaimed } from "@/lib/business-attributes";
 import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -255,6 +256,7 @@ async function runPostProcess(upserted: (typeof businesses.$inferSelect)[]) {
     const rating = biz.rating ? Number(biz.rating) : null;
 
     if (!biz.hasWebsite) { score += 30; reasons.push("Sin sitio web"); }
+    if (isGmbUnclaimed(biz.rawJson)) { score += 30; reasons.push("Ficha de Google sin reclamar"); }
     if (rating && rating >= 3.0 && rating <= 4.2) { score += 20; reasons.push("Calificación 3.0–4.2"); }
     if ((biz.reviewsCount ?? 0) < 15) { score += 15; reasons.push("Menos de 15 reseñas"); }
     if (biz.isWhatsapp) { score += 10; reasons.push("WhatsApp disponible"); }

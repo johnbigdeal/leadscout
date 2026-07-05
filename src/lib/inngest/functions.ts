@@ -17,6 +17,7 @@ import { eq, and, gt, lt, sql } from "drizzle-orm";
 import { inngest } from "./client";
 import { startGooglePlacesSearch, searchInstagram } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
+import { isGmbUnclaimed } from "@/lib/business-attributes";
 import { sendEmail, trialReminder3DaysHtml, trialExpiredHtml, dataDeletionWarningHtml, dataDeletedHtml } from "@/lib/integrations/resend";
 
 const CACHE_TTL_DAYS = 7;
@@ -219,6 +220,11 @@ export const processSearch = inngest.createFunction(
         if (!biz.hasWebsite && hasActiveIg) {
           score += 40;
           reasons.push("Sin sitio web pero IG activo");
+        }
+
+        if (isGmbUnclaimed(biz.rawJson)) {
+          score += 30;
+          reasons.push("Ficha de Google sin reclamar");
         }
 
         const rating = biz.rating ? Number(biz.rating) : null;
