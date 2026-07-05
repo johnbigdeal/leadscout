@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, MapPin, Layers, Loader2, Crosshair, Zap } from "lucide-react";
+import { Search, MapPin, Layers, Loader2, Crosshair, Zap, Lightbulb } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { FreeBadge } from "@/components/plan-badges";
 
@@ -137,7 +137,32 @@ export default function SearchPage() {
             />
           </div>
 
-
+          {/* Recomendaciones para mejores resultados */}
+          <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5 font-medium text-foreground">
+              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+              {t("tipsTitle")}
+            </p>
+            <ul className="list-disc space-y-1 pl-4">
+              <li>{t("tipVariar")}</li>
+              <li>{t("tipZonas")}</li>
+              <li>{t("tipEspecifico")}</li>
+              <li>{t("tipRepetir")}</li>
+            </ul>
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="text-[0.7rem]">{t("tipExamplesLabel")}</span>
+              {["barbería", "dentista", "restaurante", "gimnasio", "ferretería"].map((ej) => (
+                <button
+                  key={ej}
+                  type="button"
+                  onClick={() => setKeywords(ej)}
+                  className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[0.7rem] text-zinc-600 transition-colors hover:border-primary hover:text-primary"
+                >
+                  {ej}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Plan status + error */}
           {plan === "free" && searchesRemaining !== null && (

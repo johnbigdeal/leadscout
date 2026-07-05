@@ -5,7 +5,7 @@ import {
   memberships, searches, apifyRuns, businesses, businessSeo,
   opportunityScores, searchBusinesses, socialProfiles, profiles,
 } from "@/lib/db/schema";
-import { eq, and, gt, or, ilike, sql } from "drizzle-orm";
+import { eq, and, gt, or, ilike, sql, desc } from "drizzle-orm";
 import { startGooglePlacesSearch, searchInstagram, scrapeLinkedInComments, apifyClient } from "@/lib/integrations/apify";
 import { getPageSpeedInsights } from "@/lib/integrations/pagespeed";
 import { scrapeWebsiteContact } from "@/lib/integrations/scraper";
@@ -22,6 +22,19 @@ const supabase = createClient(
 );
 
 const CACHE_TTL_DAYS = 7;
+
+/* Cache GLOBAL de búsquedas: si alguien ya buscó lo mismo (keyword+location+canales)
+   en esta ventana, se reusan sus negocios sin correr Apify de nuevo. */
+const SEARCH_CACHE_TTL_DAYS = 30;
+
+/** Firma normalizada de una búsqueda (minúsculas, sin espacios extra, rubros y
+    zonas separados por coma ordenados) para matchear búsquedas equivalentes. */
+function searchSignature(keywords: string, location: string, channels: string[], linkedinUrls: string[] = []): string {
+  const norm = (s: string) => s.toLowerCase().split(",").map((x) => x.trim()).filter(Boolean).sort().join(",");
+  const ch = [...channels].sort().join(",");
+  const li = linkedinUrls.length ? "|li:" + [...linkedinUrls].map((u) => u.trim().toLowerCase()).sort().join(",") : "";
+  return `${norm(keywords)}|${norm(location)}|${ch}${li}`;
+}
 
 function normalizeName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/g, "").replace(/\s+/g, " ").trim();
@@ -273,6 +286,32 @@ async function runPostProcess(upserted: (typeof businesses.$inferSelect)[]) {
 async function runPipeline(searchId: string, orgId: string, keywords: string, location: string, channels: string[], linkedinUrls: string[] = [], maxResults: number = 100) {
   try {
     await db.update(searches).set({ status: "running" }).where(eq(searches.id, searchId));
+
+    /* Cache global: reusar una búsqueda idéntica reciente (de cualquier org) sin
+       correr Apify. businesses es global, así que se enlazan sus negocios directo. */
+    const sig = searchSignature(keywords, location, channels, linkedinUrls);
+    const cacheCutoff = new Date(Date.now() - SEARCH_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const recent = await db
+      .select({ id: searches.id, keywords: searches.keywords, location: searches.location, channels: searches.channels })
+      .from(searches)
+      .where(and(eq(searches.status, "done"), gt(searches.createdAt, cacheCutoff)))
+      .orderBy(desc(searches.createdAt))
+      .limit(500);
+    const hit = recent.find((s) => s.id !== searchId && searchSignature(s.keywords, s.location, s.channels) === sig);
+    if (hit) {
+      const links = await db
+        .select({ businessId: searchBusinesses.businessId })
+        .from(searchBusinesses)
+        .where(eq(searchBusinesses.searchId, hit.id));
+      if (links.length > 0) {
+        await db
+          .insert(searchBusinesses)
+          .values(links.map((l) => ({ searchId, businessId: l.businessId })))
+          .onConflictDoNothing();
+        await db.update(searches).set({ status: "done", totalCost: "0" }).where(eq(searches.id, searchId));
+        return;
+      }
+    }
 
     const localities = location.split(",").map(l => l.trim());
     const queries = localities.map(loc => `${keywords} ${loc}`);
