@@ -95,7 +95,7 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: `column-${status}` });
 
   return (
-    <div className="flex w-full shrink-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50/80 sm:w-80">
+    <div className="flex w-full min-w-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50/80">
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${COLUMN_DOT[status]}`} />
@@ -300,7 +300,7 @@ export default function RoadmapBoard({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 gap-4 sm:flex sm:overflow-x-auto sm:pb-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {ROADMAP_STATUSES.map((status) => (
               <KanbanColumn
                 key={status}
