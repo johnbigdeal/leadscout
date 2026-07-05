@@ -15,6 +15,9 @@ import {
   Gift,
   Target,
   ChevronDown,
+  Link2,
+  Mail,
+  ShieldAlert,
 } from "lucide-react";
 
 function Faq({ q, a }: { q: string; a: string }) {
@@ -157,7 +160,7 @@ export default function HomePage() {
             </div>
             <h3 className="text-lg font-semibold text-zinc-900">¿Querés vender sitios web?</h3>
             <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-              LeadScout te muestra los negocios que <strong>no tienen web</strong>. Generás un sitio profesional para cada uno en minutos, lo publicás y lo usás para venderles. El negocio perfecto para arrancar tu agencia.
+              LeadScout te muestra los negocios que <strong>no tienen web</strong> o que <strong>no reclamaron su ficha de Google</strong>. Generás un sitio profesional o un <strong>link-in-bio</strong> para cada uno en minutos, lo publicás y lo usás para venderles. El negocio perfecto para arrancar tu agencia.
             </p>
           </div>
         </div>
@@ -214,7 +217,22 @@ export default function HomePage() {
           <FeatureCard
             icon={<Sparkles className="h-5 w-5" />}
             title="Website builder instantáneo"
-            description="Generá un sitio web profesional para cualquier negocio en minutos: textos con IA, imágenes, reseñas de Google y botón de WhatsApp. Publicalo y vendelo."
+            description="Generá un sitio web profesional (o un link-in-bio) para cualquier negocio en minutos: textos con IA, imágenes, reseñas de Google y botón de WhatsApp. Publicalo y vendelo."
+          />
+          <FeatureCard
+            icon={<Link2 className="h-5 w-5" />}
+            title="Link-in-bio estilo Linktree"
+            description="Además del sitio completo, creá una página de enlaces para cada negocio: WhatsApp, redes, reseñas y web en un solo link. Con temas, código QR y analíticas de clics."
+          />
+          <FeatureCard
+            icon={<ShieldAlert className="h-5 w-5" />}
+            title="Fichas de Google sin reclamar"
+            description="Detectamos los negocios que no reclamaron su Google My Business — una oportunidad enorme para ofrecerles gestión, y una de las señales que más suma al puntaje."
+          />
+          <FeatureCard
+            icon={<Mail className="h-5 w-5" />}
+            title="Emails en los resultados"
+            description="Cuando están disponibles, extraemos el email del negocio directo en los resultados. Prospectá por correo, no solo por WhatsApp."
           />
           <FeatureCard
             icon={<LayoutDashboard className="h-5 w-5" />}
@@ -252,7 +270,7 @@ export default function HomePage() {
             <Step
               number="2"
               title="Detectá la oportunidad"
-              description="Mirá el puntaje y filtrá: quién no tiene web, quién tiene WhatsApp, quién está activo. Esos son tus mejores prospectos."
+              description="Mirá el puntaje y filtrá: quién no tiene web, quién no reclamó su Google My Business, quién tiene WhatsApp o email. Esos son tus mejores prospectos."
             />
             <Step
               number="3"
@@ -262,7 +280,7 @@ export default function HomePage() {
             <Step
               number="4"
               title="Cerrá la venta o generá su sitio"
-              description="Contactalos y cerrá. O generá un sitio web profesional para mostrarles lo que podés hacer — el argumento de venta perfecto."
+              description="Contactalos y cerrá. O generales un sitio web o un link-in-bio estilo Linktree para mostrarles lo que podés hacer — el argumento de venta perfecto."
             />
           </div>
         </div>
@@ -282,7 +300,11 @@ export default function HomePage() {
               {[
                 "Negocios reales de Google Maps con todos sus datos de contacto",
                 "Puntaje de oportunidad para detectar quién no tiene web",
+                "Detección de negocios que no reclamaron su Google My Business",
+                "Emails de contacto en los resultados cuando están disponibles",
                 "Website builder con IA: sitio profesional en minutos",
+                "Link-in-bio estilo Linktree con temas, QR y analíticas de clics",
+                "Código HTML personalizado en tus sitios (Pro)",
                 "Publicación instantánea en subdominio o tu propio dominio",
                 "CRM Kanban con servicios, recurrencia y panel de ventas",
                 "Multimoneda LATAM y referidos que te dan búsquedas gratis",
@@ -357,7 +379,11 @@ export default function HomePage() {
             />
             <Faq
               q="¿Puedo crear sitios web para mis clientes?"
-              a="Sí. LeadScout incluye un editor que genera un sitio profesional en minutos: textos con IA, imágenes, sección de reseñas de Google y botón de WhatsApp. Lo publicás al instante y lo usás para cerrar la venta o entregárselo al cliente."
+              a="Sí. LeadScout incluye un editor que genera un sitio profesional o un link-in-bio estilo Linktree en minutos: textos con IA, imágenes, reseñas de Google y botón de WhatsApp. Lo publicás al instante y lo usás para cerrar la venta o entregárselo al cliente. En Pro podés además insertar tu propio código HTML."
+            />
+            <Faq
+              q="¿Qué es el link-in-bio?"
+              a="Una página de enlaces estilo Linktree para cada negocio: junta WhatsApp, redes, tu sitio y reseñas en un solo link, con temas, código QR para compartir y analíticas de clics. Ideal para negocios que viven de Instagram."
             />
             <Faq
               q="¿Puedo usar mi propio dominio?"
