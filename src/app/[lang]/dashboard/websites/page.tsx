@@ -40,6 +40,7 @@ export default function WebsitesPage() {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"paralux" | "biolink">("paralux");
+  const [typeFilter, setTypeFilter] = useState<"all" | "paralux" | "biolink">("all");
   const [creating, setCreating] = useState(false);
 
   async function fetchWebsites() {
@@ -103,6 +104,17 @@ export default function WebsitesPage() {
     }
   }
 
+  const biolinkCount = websites.filter(isBiolink).length;
+  const landingCount = websites.length - biolinkCount;
+  const filtered = websites.filter((w) =>
+    typeFilter === "all" ? true : typeFilter === "biolink" ? isBiolink(w) : !isBiolink(w),
+  );
+  const filters = [
+    { id: "all" as const, label: "Todos", count: websites.length },
+    { id: "paralux" as const, label: "Landing", count: landingCount },
+    { id: "biolink" as const, label: "Link in bio", count: biolinkCount },
+  ];
+
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -122,6 +134,28 @@ export default function WebsitesPage() {
         </div>
       </div>
 
+      {!loading && websites.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setTypeFilter(f.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                typeFilter === f.id
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+              }`}
+            >
+              {f.label}
+              <span className={`rounded-full px-1.5 text-[10px] ${typeFilter === f.id ? "bg-primary/15" : "bg-zinc-100 text-zinc-500"}`}>
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -135,9 +169,17 @@ export default function WebsitesPage() {
             Crear el primero
           </Button>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <Globe className="h-12 w-12 text-zinc-300" />
+          <p className="text-muted-foreground">No hay sitios de este tipo</p>
+          <Button size="sm" variant="outline" onClick={() => setTypeFilter("all")}>
+            Ver todos
+          </Button>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {websites.map((w) => (
+          {filtered.map((w) => (
             <div key={w.id} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
