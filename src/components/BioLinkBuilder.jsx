@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from "react";
 import {
   User, Link2, Share2, Palette, Sparkles, Plus, Trash2, GripVertical,
-  Globe, MessageCircle, Instagram, Facebook, Music2, Youtube, Linkedin,
-  Twitter, Phone, Mail, MapPin, Star, Calendar, Check, ChevronDown, Layout,
+  Globe, MessageCircle, Camera, ThumbsUp, Music2, Play, Briefcase,
+  AtSign, Phone, Mail, MapPin, Star, Calendar, Check, ChevronDown, Layout,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, closestCenter, useSensor, useSensors,
@@ -45,20 +45,20 @@ const ICONS = [
 
 /* Mapa ICON -> componente lucide para dibujar el selector en el editor. */
 const ICON_COMP = {
-  link: Link2, globe: Globe, whatsapp: MessageCircle, instagram: Instagram,
-  facebook: Facebook, tiktok: Music2, youtube: Youtube, linkedin: Linkedin,
-  x: Twitter, phone: Phone, mail: Mail, map: MapPin, star: Star, calendar: Calendar,
+  link: Link2, globe: Globe, whatsapp: MessageCircle, instagram: Camera,
+  facebook: ThumbsUp, tiktok: Music2, youtube: Play, linkedin: Briefcase,
+  x: AtSign, phone: Phone, mail: Mail, map: MapPin, star: Star, calendar: Calendar,
 };
 
 /* Redes de la pestaña "Redes": clave en `d.socials` + etiqueta + placeholder. */
 const SOCIALS = [
-  { key: "instagram", label: "Instagram", ph: "https://instagram.com/tu_usuario", Icon: Instagram },
-  { key: "facebook", label: "Facebook", ph: "https://facebook.com/tu_pagina", Icon: Facebook },
+  { key: "instagram", label: "Instagram", ph: "https://instagram.com/tu_usuario", Icon: Camera },
+  { key: "facebook", label: "Facebook", ph: "https://facebook.com/tu_pagina", Icon: ThumbsUp },
   { key: "whatsapp", label: "WhatsApp", ph: "https://wa.me/521234567890", Icon: MessageCircle },
   { key: "tiktok", label: "TikTok", ph: "https://tiktok.com/@tu_usuario", Icon: Music2 },
-  { key: "youtube", label: "YouTube", ph: "https://youtube.com/@tu_canal", Icon: Youtube },
-  { key: "linkedin", label: "LinkedIn", ph: "https://linkedin.com/in/tu_perfil", Icon: Linkedin },
-  { key: "x", label: "X (Twitter)", ph: "https://x.com/tu_usuario", Icon: Twitter },
+  { key: "youtube", label: "YouTube", ph: "https://youtube.com/@tu_canal", Icon: Play },
+  { key: "linkedin", label: "LinkedIn", ph: "https://linkedin.com/in/tu_perfil", Icon: Briefcase },
+  { key: "x", label: "X (Twitter)", ph: "https://x.com/tu_usuario", Icon: AtSign },
   { key: "website", label: "Sitio web", ph: "https://tusitio.com", Icon: Globe },
   { key: "email", label: "Email", ph: "hola@tunegocio.com", Icon: Mail },
 ];
