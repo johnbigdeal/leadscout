@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { websites, customDomains, subscriptions } from "@/lib/db/schema";
-import { eq, or } from "drizzle-orm";
+import { websites, customDomains, subscriptions, memberships, profiles } from "@/lib/db/schema";
+import { eq, or, and } from "drizzle-orm";
 import { generateHTML } from "@/lib/paralux/generate-html";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,20 @@ export async function GET(
     .from(subscriptions)
     .where(eq(subscriptions.orgId, site.orgId))
     .limit(1);
-  const isPro = sub?.plan === "pro" && sub?.status === "active";
+  /* Pro si la org tiene subscripción Pro activa, o si la posee un super admin
+     (mismo bypass que effectivePlan en /api/billing/plans y el publish route),
+     para que ni la insignia ni el HTML custom queden inconsistentes con lo que
+     el dueño ve en el builder. */
+  let isPro = sub?.plan === "pro" && sub?.status === "active";
+  if (!isPro) {
+    const [admin] = await db
+      .select({ id: profiles.id })
+      .from(memberships)
+      .innerJoin(profiles, eq(profiles.id, memberships.userId))
+      .where(and(eq(memberships.orgId, site.orgId), eq(profiles.role, "super_admin")))
+      .limit(1);
+    if (admin) isPro = true;
+  }
   const showBadge = isPro ? data.hideBadge !== true : true;
 
   const html = generateHTML(data, { showBadge, allowCustomCode: isPro });
