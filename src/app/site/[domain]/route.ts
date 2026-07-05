@@ -54,7 +54,7 @@ export async function GET(
   const isPro = sub?.plan === "pro" && sub?.status === "active";
   const showBadge = isPro ? data.hideBadge !== true : true;
 
-  const html = generateHTML(data, { showBadge });
+  const html = generateHTML(data, { showBadge, allowCustomCode: isPro });
 
   return new Response(html, {
     status: 200,

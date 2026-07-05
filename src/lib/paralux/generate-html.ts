@@ -243,11 +243,19 @@ const PRESETS = {
    ========================================================================= */
 export function generateHTML(
   d: Record<string, any>,
-  opts: { showBadge?: boolean } = {},
+  opts: { showBadge?: boolean; allowCustomCode?: boolean } = {},
 ) {
   /* "Hecho con LeadScout" badge. Shown by default; the serving route forces it
      on for Free plans and lets Pro users hide it via data.hideBadge. */
   const showBadge = opts.showBadge !== false;
+
+  /* Código HTML custom (head/body/footer). Solo se inyecta si el llamador lo
+     habilita (plan Pro, resuelto server-side en el route). Se interpola crudo,
+     SIN esc(): es HTML del propio usuario para su sitio. */
+  const allowCustomCode = opts.allowCustomCode === true;
+  const customHead = allowCustomCode ? (d.customHead || "") : "";
+  const customBody = allowCustomCode ? (d.customBody || "") : "";
+  const customFooter = allowCustomCode ? (d.customFooter || "") : "";
   const lang: "es" | "en" = d.lang === "en" ? "en" : "es";
   const S = STRINGS[lang];
   const p = PRESETS[(d.preset as keyof typeof PRESETS) || "modern"];
@@ -801,8 +809,10 @@ ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="${p.fontsHref}" rel="stylesheet">
 <style>${css}</style>
+${customHead}
 </head>
 <body>
+${customBody}
 <header class="nav">
   <span class="brand">${esc(d.logoText || d.businessName || "MARCA")}</span>
   <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${bookingNavLink}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
@@ -867,6 +877,7 @@ ${socialHTML}
     <div class="foot-links">${socials}</div>
     ${footerAttributionHTML(unsplashAttributions)}
   </div>
+  ${customFooter}
   ${lsBadgeHTML}
 </footer>
 

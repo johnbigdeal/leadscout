@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Sparkles, Globe, Monitor, Smartphone, MessageCircle, Plus,
-  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search, Star, CalendarClock
+  Trash2, Loader2, X, Layers, Palette, Type, FileText, Phone, Search, Star, CalendarClock, Code
 } from "lucide-react";
 import { generateHTML } from "@/lib/paralux/generate-html";
 import { toast } from "sonner";
@@ -174,6 +174,9 @@ const DEFAULT = {
   preset: "modern",
   dark: false,
   accent: "#3B3BF5",
+  customHead: "",
+  customBody: "",
+  customFooter: "",
 };
 
 /* =========================================================================
@@ -291,6 +294,7 @@ const TABS = [
   { id: "contacto", label: "Contacto", icon: Phone },
   { id: "reservas", label: "Reservas", icon: CalendarClock },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { id: "codigo", label: "Código", icon: Code },
 ];
 
 const WEEKDAYS = [
@@ -337,7 +341,7 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
   useEffect(() => {
     const t = setTimeout(() => {
       const showBadge = plan === "pro" ? d.hideBadge !== true : true;
-      const html = generateHTML(d, { showBadge });
+      const html = generateHTML(d, { showBadge, allowCustomCode: plan === "pro" });
       setPreview(html);
       if (onChange) onChange(d, html);
     }, 280);
@@ -866,6 +870,55 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                         </div>
                       </div>
                     </>
+                  )}
+                </>
+              )}
+
+              {tab === "codigo" && (
+                <>
+                  <div className="px-sub" style={{ marginTop: 0 }}>
+                    Código personalizado
+                    {plan !== "pro" && (
+                      <span style={{ marginLeft: 6, fontSize: ".7rem", opacity: 0.7 }}>🔒 Pro</span>
+                    )}
+                  </div>
+
+                  {plan === "pro" ? (
+                    <>
+                      <Field
+                        label="Código en <head>"
+                        area
+                        v={d.customHead}
+                        on={(v) => set("customHead", v)}
+                        ph="<!-- Ej: etiqueta de Google Analytics, meta tags, estilos -->"
+                        hint="Se inserta antes de </head>. Ideal para analytics, píxeles, meta tags o estilos."
+                      />
+                      <Field
+                        label="Código en <body>"
+                        area
+                        v={d.customBody}
+                        on={(v) => set("customBody", v)}
+                        ph="<!-- Ej: script que debe correr al inicio del body -->"
+                        hint="Se inserta justo al abrir el <body>."
+                      />
+                      <Field
+                        label="Código en el footer"
+                        area
+                        v={d.customFooter}
+                        on={(v) => set("customFooter", v)}
+                        ph="<!-- Ej: widget de chat, script de conversión -->"
+                        hint="Se inserta al final de la página, dentro del footer. Ideal para chat/embeds y scripts de terceros."
+                      />
+                      <p className="px-hint">
+                        El código se inyecta tal cual en tu sitio publicado. Pegá solo código de fuentes en las que confíes.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="px-hint">
+                      Insertá tu propio código HTML en el {"<head>"}, {"<body>"} y footer de la página
+                      (Google Analytics, píxeles de Meta, widgets de chat, embeds, etc.).
+                      Esta función es exclusiva del plan Pro. Mejorá a Pro para habilitarla.
+                    </p>
                   )}
                 </>
               )}
