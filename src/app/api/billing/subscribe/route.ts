@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { subscriptions, organizations, planConfigs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { createCheckoutSession, createStripeCustomer } from "@/lib/integrations/stripe";
+import { createCheckoutSession, createStripeCustomer, STRIPE_PRICES } from "@/lib/integrations/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +21,25 @@ export async function POST(request: Request) {
 
   const dbPlanId = planId.replace(/-/g, "_");
 
-  const [config] = await db
-    .select({ stripePriceId: planConfigs.stripePriceId })
-    .from(planConfigs)
-    .where(eq(planConfigs.id, dbPlanId))
-    .limit(1);
+  let priceId: string | null = null;
+  try {
+    const [config] = await db
+      .select({ stripePriceId: planConfigs.stripePriceId })
+      .from(planConfigs)
+      .where(eq(planConfigs.id, dbPlanId))
+      .limit(1);
+    priceId = config?.stripePriceId ?? null;
+  } catch {
+    /* plan_configs table may not exist yet — fall back to env vars */
+  }
 
-  const priceId = config?.stripePriceId;
+  if (!priceId) {
+    priceId = planId === "pro-yearly" ? STRIPE_PRICES.yearly : STRIPE_PRICES.monthly;
+  }
 
   if (!priceId) {
     return NextResponse.json(
-      { error: "Stripe price not configured for this plan" },
+      { error: "Stripe price not configured" },
       { status: 500 },
     );
   }

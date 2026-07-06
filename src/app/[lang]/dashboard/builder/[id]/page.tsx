@@ -57,6 +57,7 @@ export default function BuilderPage() {
       .catch(() => setQrDataUrl(""));
   }, [publishedUrl]);
   const [plan, setPlan] = useState<string>("free");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [publishMode, setPublishMode] = useState<"subdomain" | "custom">("subdomain");
   const [customDomain, setCustomDomain] = useState("");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -82,11 +83,25 @@ export default function BuilderPage() {
     }
   }
 
+  async function fetchAuthStatus() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/auth/status", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setIsSuperAdmin(data.isSuperAdmin);
+    }
+  }
+
   useEffect(() => {
     fetchWebsite();
     fetchAvailableDomains();
     fetchPlan();
+    fetchAuthStatus();
   }, [websiteId]);
+
+  useEffect(() => {
+    if (isSuperAdmin) setPlan("pro");
+  }, [isSuperAdmin]);
 
   /* Poll published site status */
   useEffect(() => {

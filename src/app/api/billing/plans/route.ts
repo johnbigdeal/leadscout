@@ -83,7 +83,12 @@ export async function GET(request: Request) {
   const limits = await getPlanLimits(ctx.orgId, ctx.user.id);
   const effectivePlan = ctx.isSuperAdmin ? "pro" : limits.plan;
 
-  const dbPlans = await db.select().from(planConfigs).where(eq(planConfigs.isActive, true));
+  let dbPlans: any[] = [];
+  try {
+    dbPlans = await db.select().from(planConfigs).where(eq(planConfigs.isActive, true));
+  } catch {
+    /* plan_configs table may not exist yet (needs migration) */
+  }
   const source = dbPlans.length > 0 ? dbPlans : DEFAULT_PLANS;
 
   const plans = source.map((p: any) => ({
