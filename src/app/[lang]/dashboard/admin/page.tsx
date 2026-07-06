@@ -141,6 +141,7 @@ interface PlanConfig {
   currency: string;
   interval: string;
   popular: boolean;
+  discount: string | null;
   features: string[];
   limitations: Record<string, any>;
   stripePriceId: string | null;
@@ -1354,6 +1355,7 @@ function PlanConfigCard({
   const [name, setName] = useState(plan.name);
   const [description, setDescription] = useState(plan.description);
   const [price, setPrice] = useState(String(plan.price / 100));
+  const [discount, setDiscount] = useState(plan.discount || "");
   const [stripePriceId, setStripePriceId] = useState(plan.stripePriceId || "");
   const [paypalPlanId, setPaypalPlanId] = useState(plan.paypalPlanId || "");
   const [featuresText, setFeaturesText] = useState(plan.features.join("\n"));
@@ -1363,6 +1365,7 @@ function PlanConfigCard({
       name,
       description,
       price: Math.round(Number(price) * 100),
+      discount: discount || null,
       stripePriceId: stripePriceId || null,
       paypalPlanId: paypalPlanId || null,
       features: featuresText.split("\n").filter(Boolean),
@@ -1390,6 +1393,9 @@ function PlanConfigCard({
           <span className="text-zinc-300">|</span>
           <span className="text-zinc-500">{plan.id}</span>
         </div>
+        {plan.discount && (
+          <p className="mt-1 text-xs text-emerald-600 font-medium">{plan.discount}</p>
+        )}
         {plan.features.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {plan.features.map((f, i) => (
@@ -1432,6 +1438,10 @@ function PlanConfigCard({
         <div className="sm:col-span-2">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Descripción</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Texto de descuento</label>
+          <input value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="Ej: Ahorra $140, 6 meses gratis" className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-500">Stripe Price ID</label>

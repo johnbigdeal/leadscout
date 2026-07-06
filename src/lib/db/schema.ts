@@ -480,6 +480,7 @@ export const planConfigs = pgTable("plan_configs", {
   currency: text("currency").notNull().default("USD"),
   interval: text("interval"), // null para Free, "month" o "year"
   popular: boolean("popular").notNull().default(false),
+  discount: text("discount"), // texto de descuento, ej: "Ahorra $140", "6 meses gratis"
   features: jsonb("features").notNull().default([]),
   limitations: jsonb("limitations").notNull().default([]),
   stripePriceId: text("stripe_price_id"),

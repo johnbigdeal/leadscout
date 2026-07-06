@@ -63,6 +63,7 @@ const DEFAULT_PLANS = [
     price: 100,
     currency: "USD",
     interval: "year",
+    discount: "Ahorra $140",
     stripePriceId: null,
     paypalPlanId: null,
     features: [
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
     popular: p.popular ?? false,
       current: p.id === "free" ? effectivePlan === "free" : effectivePlan === "pro",
     ...(p.id === "free" ? { searchesRemaining: limits.searchesRemaining, creditsRemaining: limits.creditsRemaining ?? 0 } : {}),
-    ...(p.id === "pro_yearly" ? { discount: "Ahorra $140" } : {}),
+    ...(p.discount ? { discount: p.discount } : {}),
   }));
 
   return NextResponse.json({

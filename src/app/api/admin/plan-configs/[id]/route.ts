@@ -16,7 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const allowedFields = [
     "name", "description", "price", "currency", "interval",
-    "popular", "features", "limitations",
+    "popular", "discount", "features", "limitations",
     "stripePriceId", "paypalPlanId", "isActive",
   ];
 
