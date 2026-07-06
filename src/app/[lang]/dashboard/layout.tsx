@@ -53,6 +53,7 @@ export default async function DashboardLayout({
   const [sub] = await db
     .select({
       plan: subscriptions.plan,
+      status: subscriptions.status,
       trialEndsAt: subscriptions.trialEndsAt,
       dataDeletedAt: subscriptions.dataDeletedAt,
     })
@@ -60,8 +61,9 @@ export default async function DashboardLayout({
     .where(eq(subscriptions.orgId, membership.orgId))
     .limit(1);
 
-  const effectivePlan = isSuperAdmin ? "pro" : (sub?.plan || "free");
-  const trialExpired = sub?.trialEndsAt && new Date(sub.trialEndsAt) < new Date();
+  const isPro = sub?.plan === "pro" && sub?.status === "active";
+  const effectivePlan = isSuperAdmin ? "pro" : (isPro ? "pro" : "free");
+  const trialExpired = !isPro && !isSuperAdmin && sub?.trialEndsAt && new Date(sub.trialEndsAt) < new Date();
   const trialDaysLeft = sub?.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : -1;
