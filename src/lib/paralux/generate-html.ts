@@ -24,6 +24,8 @@ const imgUrl = (img: any): string => {
 const imgAttribution = (img: any) => {
   if (!img || typeof img === "string") return null;
   if (!img.author && !img.authorUrl) return null;
+  const url = (img.url || "").toLowerCase();
+  if (!url.includes("images.unsplash.com") && !url.includes("unsplash.com")) return null;
   return {
     author: img.author || "Unsplash",
     authorUrl: img.authorUrl || "https://unsplash.com/?utm_source=leadscout&utm_medium=referral",

@@ -1000,7 +1000,7 @@ function ImageField({ label, value, onChange, hint }) {
         clientPayload: JSON.stringify({ kind: "image" }),
         contentType: file.type,
       });
-      updateUrl(blob.url);
+      onChange(blob.url);
     } catch (err) {
       console.error("Upload failed", err);
       const msg = "No se pudo subir la imagen. Probá con otra.";
