@@ -1353,7 +1353,7 @@ function PlanConfigCard({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(plan.name);
   const [description, setDescription] = useState(plan.description);
-  const [price, setPrice] = useState(String(plan.price));
+  const [price, setPrice] = useState(String(plan.price / 100));
   const [stripePriceId, setStripePriceId] = useState(plan.stripePriceId || "");
   const [paypalPlanId, setPaypalPlanId] = useState(plan.paypalPlanId || "");
   const [featuresText, setFeaturesText] = useState(plan.features.join("\n"));
@@ -1362,7 +1362,7 @@ function PlanConfigCard({
     await onSave(plan.id, {
       name,
       description,
-      price: Number(price),
+      price: Math.round(Number(price) * 100),
       stripePriceId: stripePriceId || null,
       paypalPlanId: paypalPlanId || null,
       features: featuresText.split("\n").filter(Boolean),
@@ -1388,7 +1388,7 @@ function PlanConfigCard({
           <span className="font-medium">${(plan.price / 100).toFixed(2)}</span>
           <span className="text-zinc-400">/ {plan.interval}</span>
           <span className="text-zinc-300">|</span>
-          <span className="text-zinc-500">{plan.key}</span>
+          <span className="text-zinc-500">{plan.id}</span>
         </div>
         {plan.features.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -1426,7 +1426,7 @@ function PlanConfigCard({
           <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-500">Precio (centavos USD)</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Precio (USD)</label>
           <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
         </div>
         <div className="sm:col-span-2">
