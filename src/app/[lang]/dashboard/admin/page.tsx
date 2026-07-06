@@ -132,8 +132,24 @@ interface InviteRequest {
   createdAt: string;
 }
 
+interface PlanConfig {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  interval: string;
+  popular: boolean;
+  features: string[];
+  limitations: Record<string, any>;
+  stripePriceId: string | null;
+  paypalPlanId: string | null;
+  isActive: boolean;
+}
+
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "sinpe" | "invites" | "trials" | "searches" | "referrals">("overview");
+  const [tab, setTab] = useState<"overview" | "users" | "orgs" | "subscriptions" | "sinpe" | "invites" | "trials" | "searches" | "referrals" | "planes">("overview");
   const [referrals, setReferrals] = useState<{ referrerEmail: string; referredEmail: string; referredAt: string }[]>([]);
   const [topReferrers, setTopReferrers] = useState<{ email: string; count: number }[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -150,6 +166,7 @@ export default function AdminDashboardPage() {
   const [selectedSearches, setSelectedSearches] = useState<Set<string>>(new Set());
   const [extending, setExtending] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
+  const [planConfigs, setPlanConfigs] = useState<PlanConfig[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function fetchStats() {
@@ -242,6 +259,47 @@ export default function AdminDashboardPage() {
       setReferrals(data.referrals || []);
       setTopReferrers(data.topReferrers || []);
     }
+  }
+
+  async function fetchPlanConfigs() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/plan-configs", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setPlanConfigs(data.plans || []);
+    }
+  }
+
+  async function handlePlanConfigUpdate(id: string, updates: Partial<PlanConfig>) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`/api/admin/plan-configs/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      toast.error("No se pudo actualizar el plan. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Plan actualizado");
+    fetchPlanConfigs();
+  }
+
+  async function handleSeedPlans() {
+    if (!confirm("¿Crear planes por defecto? Esto no borrará planes existentes.")) return;
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/admin/plan-configs", {
+      method: "POST",
+      headers,
+    });
+    if (!res.ok) {
+      toast.error("No se pudieron crear los planes. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Planes creados");
+    fetchPlanConfigs();
   }
 
   async function handleDeleteSearch(searchId: string) {
@@ -417,7 +475,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchInviteCodes(), fetchTrials(), fetchSearches(), fetchReferrals()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchInviteCodes(), fetchTrials(), fetchSearches(), fetchReferrals(), fetchPlanConfigs()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -465,6 +523,7 @@ export default function AdminDashboardPage() {
         <TabButton active={tab === "trials"} onClick={() => setTab("trials")} label={`Trials (${trials.filter(t => t.expired).length})`} />
         <TabButton active={tab === "searches"} onClick={() => setTab("searches")} label={`Búsquedas (${searches.length})`} />
         <TabButton active={tab === "referrals"} onClick={() => setTab("referrals")} label={`Referidos (${referrals.length})`} />
+        <TabButton active={tab === "planes"} onClick={() => setTab("planes")} label={`Planes (${planConfigs.length})`} />
       </div>
 
       {/* Overview Tab */}
@@ -1159,6 +1218,31 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
+      {tab === "planes" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Configuración de Planes</h2>
+            <Button size="sm" variant="outline" onClick={handleSeedPlans}>
+              <Zap className="mr-1 h-3.5 w-3.5" />
+              Crear planes por defecto
+            </Button>
+          </div>
+          {planConfigs.length === 0 ? (
+            <div className="rounded-xl border border-zinc-200 bg-white p-6 text-center">
+              <CreditCard className="mx-auto mb-2 h-8 w-8 text-zinc-300" />
+              <p className="text-sm text-zinc-500">No hay planes configurados.</p>
+              <p className="mt-1 text-xs text-zinc-400">Usa el botón "Crear planes por defecto" para inicializarlos.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {planConfigs.map((plan) => (
+                <PlanConfigCard key={plan.id} plan={plan} onSave={handlePlanConfigUpdate} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === "referrals" && (
         <div className="space-y-6">
           {topReferrers.length > 0 && (
@@ -1256,6 +1340,113 @@ function TabButton({
     >
       {label}
     </button>
+  );
+}
+
+function PlanConfigCard({
+  plan,
+  onSave,
+}: {
+  plan: PlanConfig;
+  onSave: (id: string, updates: Partial<PlanConfig>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(plan.name);
+  const [description, setDescription] = useState(plan.description);
+  const [price, setPrice] = useState(String(plan.price));
+  const [stripePriceId, setStripePriceId] = useState(plan.stripePriceId || "");
+  const [paypalPlanId, setPaypalPlanId] = useState(plan.paypalPlanId || "");
+  const [featuresText, setFeaturesText] = useState(plan.features.join("\n"));
+
+  async function save() {
+    await onSave(plan.id, {
+      name,
+      description,
+      price: Number(price),
+      stripePriceId: stripePriceId || null,
+      paypalPlanId: paypalPlanId || null,
+      features: featuresText.split("\n").filter(Boolean),
+    });
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-white p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold capitalize">{plan.name}</h3>
+            {plan.popular && <Badge className="bg-primary text-white text-xs">Popular</Badge>}
+            <Badge variant={plan.isActive ? "default" : "secondary"}>{plan.isActive ? "Activo" : "Inactivo"}</Badge>
+          </div>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-zinc-600" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">{plan.description}</p>
+        <div className="mt-2 flex items-center gap-3 text-sm">
+          <span className="font-medium">${(plan.price / 100).toFixed(2)}</span>
+          <span className="text-zinc-400">/ {plan.interval}</span>
+          <span className="text-zinc-300">|</span>
+          <span className="text-zinc-500">{plan.key}</span>
+        </div>
+        {plan.features.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {plan.features.map((f, i) => (
+              <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600">{f}</span>
+            ))}
+          </div>
+        )}
+        {(plan.stripePriceId || plan.paypalPlanId) && (
+          <div className="mt-2 flex gap-3 text-xs text-zinc-400">
+            {plan.stripePriceId && <span>Stripe: {plan.stripePriceId}</span>}
+            {plan.paypalPlanId && <span>PayPal: {plan.paypalPlanId}</span>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold capitalize">Editando: {plan.name}</h3>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-emerald-600" onClick={save}>
+            <Save className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-zinc-600" onClick={() => setEditing(false)}>
+            <XCircle className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Nombre</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Precio (centavos USD)</label>
+          <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Descripción</label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Stripe Price ID</label>
+          <input value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">PayPal Plan ID</label>
+          <input value={paypalPlanId} onChange={(e) => setPaypalPlanId(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Características (una por línea)</label>
+          <textarea value={featuresText} onChange={(e) => setFeaturesText(e.target.value)} rows={4} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+      </div>
+    </div>
   );
 }
 

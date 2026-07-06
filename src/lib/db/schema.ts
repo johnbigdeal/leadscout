@@ -465,3 +465,25 @@ export const inviteCodeRequests = pgTable("invite_code_requests", {
   statusIdx: index().on(t.status),
   userIdx: index().on(t.userId),
 }));
+
+/* =========================================================================
+   PLAN CONFIGURATION (admin-configurable plans)
+   Tabla GLOBAL: define los planes disponibles (Free, Pro Mensual, Pro
+   Anual) con sus precios, descripciones, features, y IDs de Stripe/PayPal.
+   El super admin puede editar todo desde el panel de administración.
+   ========================================================================= */
+export const planConfigs = pgTable("plan_configs", {
+  id: text("id").primaryKey(), // "free" | "pro_monthly" | "pro_yearly"
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  price: integer("price").notNull().default(0), // en centavos USD
+  currency: text("currency").notNull().default("USD"),
+  interval: text("interval"), // null para Free, "month" o "year"
+  popular: boolean("popular").notNull().default(false),
+  features: jsonb("features").notNull().default([]),
+  limitations: jsonb("limitations").notNull().default([]),
+  stripePriceId: text("stripe_price_id"),
+  paypalPlanId: text("paypal_plan_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
