@@ -488,3 +488,16 @@ export const planConfigs = pgTable("plan_configs", {
   isActive: boolean("is_active").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* =========================================================================
+   SINPE CONFIGURATION (global — single row)
+   Configuración del pago local por SINPE Móvil (Costa Rica).
+   ========================================================================= */
+export const sinpeConfig = pgTable("sinpe_config", {
+  id: text("id").primaryKey().default("default"),
+  number: text("number").notNull(),
+  name: text("name").notNull(),
+  amount: text("amount").notNull(),
+  supportEmail: text("support_email").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

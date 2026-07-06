@@ -168,6 +168,7 @@ export default function AdminDashboardPage() {
   const [extending, setExtending] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [planConfigs, setPlanConfigs] = useState<PlanConfig[]>([]);
+  const [sinpeConfig, setSinpeConfig] = useState<{ number: string; name: string; amount: string; supportEmail: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function fetchStats() {
@@ -285,6 +286,31 @@ export default function AdminDashboardPage() {
     }
     toast.success("Plan actualizado");
     fetchPlanConfigs();
+  }
+
+  async function fetchSinpeConfig() {
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/admin/sinpe-config", { headers });
+    if (res.ok) {
+      const data = await res.json();
+      setSinpeConfig(data.config);
+    }
+  }
+
+  async function handleSinpeConfigUpdate(updates: Record<string, string>) {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch("/api/admin/sinpe-config", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      toast.error("No se pudo actualizar la config SINPE. Intenta de nuevo.");
+      return;
+    }
+    toast.success("Config SINPE actualizada");
+    fetchSinpeConfig();
   }
 
   async function handleSeedPlans() {
@@ -476,7 +502,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchInviteCodes(), fetchTrials(), fetchSearches(), fetchReferrals(), fetchPlanConfigs()]).finally(() => setLoading(false));
+    Promise.all([fetchStats(), fetchUsers(), fetchOrgs(), fetchSubscriptions(), fetchSinpePayments(), fetchInviteCodes(), fetchTrials(), fetchSearches(), fetchReferrals(), fetchPlanConfigs(), fetchSinpeConfig()]).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -1241,6 +1267,18 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           )}
+
+          {/* SINPE config */}
+          <div className="mt-10">
+            <h3 className="mb-3 text-lg font-semibold">Pago local (SINPE Móvil — Costa Rica)</h3>
+            {sinpeConfig ? (
+              <SinpeConfigForm config={sinpeConfig} onSave={handleSinpeConfigUpdate} />
+            ) : (
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 text-center">
+                <p className="text-sm text-zinc-500">Cargando configuración SINPE...</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1455,6 +1493,77 @@ function PlanConfigCard({
         <div className="sm:col-span-2">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Características (una por línea)</label>
           <textarea value={featuresText} onChange={(e) => setFeaturesText(e.target.value)} rows={4} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SinpeConfigForm({
+  config,
+  onSave,
+}: {
+  config: { number: string; name: string; amount: string; supportEmail: string };
+  onSave: (updates: Record<string, string>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [number, setNumber] = useState(config.number);
+  const [name, setName] = useState(config.name);
+  const [amount, setAmount] = useState(config.amount);
+  const [supportEmail, setSupportEmail] = useState(config.supportEmail);
+
+  async function save() {
+    await onSave({ number, name, amount, supportEmail });
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-white p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm"><span className="font-medium">Número:</span> {config.number}</p>
+            <p className="text-sm"><span className="font-medium">Nombre:</span> {config.name}</p>
+            <p className="text-sm"><span className="font-medium">Monto:</span> {config.amount}</p>
+            <p className="text-sm"><span className="font-medium">Email soporte:</span> {config.supportEmail}</p>
+          </div>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-zinc-600" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-semibold">Editando SINPE</h4>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-emerald-600" onClick={save}>
+            <Save className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-zinc-600" onClick={() => setEditing(false)}>
+            <XCircle className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Número SINPE</label>
+          <input value={number} onChange={(e) => setNumber(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Nombre del beneficiario</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Monto</label>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Ej: 10,000 colones" className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Email de soporte</label>
+          <input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} type="email" className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
         </div>
       </div>
     </div>

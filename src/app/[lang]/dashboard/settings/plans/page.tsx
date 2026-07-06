@@ -48,10 +48,10 @@ export default function PlansPage() {
   const [error, setError] = useState("");
   const [sinpeCopied, setSinpeCopied] = useState(false);
   const [inCostaRica, setInCostaRica] = useState(false);
-
-  const SINPE_NUMBER = "64593374";
-  const SINPE_NAME = "JONATHAN RODRIGUEZ";
-  const SINPE_AMOUNT = "10,000 colones";
+  const [sinpeNumber, setSinpeNumber] = useState("64593374");
+  const [sinpeName, setSinpeName] = useState("JONATHAN RODRIGUEZ");
+  const [sinpeAmount, setSinpeAmount] = useState("10,000 colones");
+  const [supportEmail, setSupportEmail] = useState("johnbigdeal@gmail.com");
 
   // Detecta Costa Rica por zona horaria para resaltar el pago local (sin llamadas de red).
   useEffect(() => {
@@ -64,9 +64,27 @@ export default function PlansPage() {
     }
   }, []);
 
+  async function fetchSinpeConfig() {
+    const headers = await getAuthHeaders();
+    try {
+      const res = await fetch("/api/admin/sinpe-config", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setSinpeNumber(data.config.number);
+          setSinpeName(data.config.name);
+          setSinpeAmount(data.config.amount);
+          setSupportEmail(data.config.supportEmail);
+        }
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
   async function copySinpeNumber() {
     try {
-      await navigator.clipboard.writeText(SINPE_NUMBER);
+      await navigator.clipboard.writeText(sinpeNumber);
       setSinpeCopied(true);
       setTimeout(() => setSinpeCopied(false), 2000);
     } catch {
@@ -142,6 +160,7 @@ export default function PlansPage() {
 
   useEffect(() => {
     fetchPlans();
+    fetchSinpeConfig();
 
     let timer: ReturnType<typeof setTimeout>;
 
@@ -185,7 +204,7 @@ export default function PlansPage() {
 
   function handleDowngrade() {
     window.location.href =
-      "mailto:johnbigdeal@gmail.com?subject=" +
+      "mailto:" + encodeURIComponent(supportEmail) + "?subject=" +
       encodeURIComponent("Solicitud de downgrade a Free") +
       "&body=" +
       encodeURIComponent("Hola, quiero bajar mi plan de Pro a Free. Mi cuenta es: ");
@@ -438,7 +457,7 @@ export default function PlansPage() {
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Pagá tu plan Pro en colones por <span className="font-medium text-foreground">SINPE Móvil</span>:{" "}
-                <span className="font-semibold text-foreground">{SINPE_AMOUNT} por mes</span>.
+                <span className="font-semibold text-foreground">{sinpeAmount} por mes</span>.
               </p>
             </div>
           </div>
@@ -448,7 +467,7 @@ export default function PlansPage() {
               SINPE Móvil
             </p>
             <div className="mt-1 flex items-center gap-2">
-              <span className="font-mono text-lg font-bold tracking-wide">{SINPE_NUMBER}</span>
+              <span className="font-mono text-lg font-bold tracking-wide">{sinpeNumber}</span>
               <Button
                 size="icon"
                 variant="ghost"
@@ -464,7 +483,7 @@ export default function PlansPage() {
                 )}
               </Button>
             </div>
-            <p className="mt-0.5 text-sm text-muted-foreground">{SINPE_NAME}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{sinpeName}</p>
           </div>
         </div>
 
@@ -525,8 +544,8 @@ export default function PlansPage() {
               {sinpeError && <p className="mt-2 text-sm text-destructive">{sinpeError}</p>}
               <p className="mt-3 text-xs text-muted-foreground">
                 Aceptamos imagen o PDF. También podés escribirnos a{" "}
-                <a href="mailto:johnbigdeal@gmail.com" className="font-medium text-primary hover:underline">
-                  johnbigdeal@gmail.com
+                <a href={"mailto:" + supportEmail} className="font-medium text-primary hover:underline">
+                  {supportEmail}
                 </a>
                 .
               </p>
@@ -539,7 +558,7 @@ export default function PlansPage() {
         <h3 className="font-semibold mb-2">¿Necesitás ayuda?</h3>
         <p className="text-sm text-muted-foreground">
           Si tenés dudas sobre los planes o necesitás una solución enterprise,
-          contactanos a johnbigdeal@gmail.com
+          contactanos a {supportEmail}
         </p>
       </div>
     </div>
