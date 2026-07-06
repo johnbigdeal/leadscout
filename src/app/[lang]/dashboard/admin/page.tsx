@@ -1436,6 +1436,7 @@ function PlanConfigCard({
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-500">Stripe Price ID</label>
           <input value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} className="w-full rounded border border-zinc-200 px-2 py-1 text-sm" />
+          <p className="mt-0.5 text-[10px] text-zinc-400">Debe empezar con <code className="text-zinc-500">price_</code>, no <code className="text-zinc-500">prod_</code>. Lo encontrás en Stripe → Productos → Pricing.</p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-500">PayPal Plan ID</label>

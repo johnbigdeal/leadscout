@@ -95,7 +95,7 @@ export async function GET(request: Request) {
     id: p.id.replace(/_/g, "-"),
     name: p.name,
     description: p.description,
-    price: Number(p.price),
+    price: Number(p.price) / 100,
     currency: p.currency || "USD",
     interval: p.interval,
     stripePriceId: p.stripePriceId,
