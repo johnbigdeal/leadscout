@@ -53,8 +53,7 @@ export default function MagicLinkPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-background">
-        <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-[#e2e8f0]">
           <CardHeader className="space-y-1">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
               <CheckCircle className="h-6 w-6 text-green-600" />
@@ -70,13 +69,11 @@ export default function MagicLinkPage() {
             </Link>
           </CardContent>
         </Card>
-      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-background">
-      <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-[#e2e8f0]">
         <CardHeader className="space-y-1">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Mail className="h-6 w-6 text-primary" />
@@ -126,6 +123,5 @@ export default function MagicLinkPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
   );
 }

@@ -67,8 +67,7 @@ export default function ConfirmEmailPage() {
   }, [router, searchParams]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-background">
-      <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-[#e2e8f0]">
         <CardHeader className="space-y-1">
           {status === "loading" && (
             <>
@@ -105,6 +104,5 @@ export default function ConfirmEmailPage() {
           )}
         </CardContent>
       </Card>
-    </div>
   );
 }

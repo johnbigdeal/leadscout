@@ -817,7 +817,7 @@ ${customHead}
 ${customBody}
 <header class="nav">
   <span class="brand">${esc(d.logoText || d.businessName || "MARCA")}</span>
-  <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${bookingNavLink}${hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
+  <div class="nav-actions">${phoneHTML}<nav class="nav-links">${navLinks}${bookingNavLink}${bookingOn && hasWA ? `<a class="nav-cta" href="${wa}" target="_blank" rel="noopener">${S.navCta}</a>` : ""}</nav></div>
 </header>
 
 <section id="inicio" class="hero">

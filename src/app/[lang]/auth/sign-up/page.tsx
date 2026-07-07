@@ -128,8 +128,7 @@ export default function SignUpPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-background">
-        <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-[#e2e8f0]">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-display tracking-tight">Revisá tu email</CardTitle>
             <CardDescription>
@@ -143,13 +142,11 @@ export default function SignUpPage() {
             </Button>
           </CardContent>
         </Card>
-      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-background">
-      <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-[#e2e8f0]">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-display tracking-tight">{t("signUpTitle")}</CardTitle>
           <CardDescription>Crea tu cuenta de LeadScout en segundos</CardDescription>
@@ -265,6 +262,5 @@ export default function SignUpPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
   );
 }
