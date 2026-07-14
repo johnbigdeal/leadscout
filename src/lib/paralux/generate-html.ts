@@ -322,7 +322,7 @@ export function generateHTML(
           ${gallery
             .map(
               (img: any, i: number) => `
-            <figure class="g-item reveal" style="transition-delay:${(i % 3) * 90}ms">
+            <figure class="g-item reveal">
               <img src="${esc(imgUrl(img))}" alt="${S.projectAlt} ${i + 1}" loading="lazy"/>
               ${attributionHTML(img, "attribution--gallery")}
             </figure>`,
@@ -333,7 +333,9 @@ export function generateHTML(
     : "";
 
   const stmtHTML = d.stmtText
-    ? `<section class="stmt" style="background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('${esc(imgUrl(d.stmtImage))}')">
+    ? `<section class="stmt">
+        <div class="stmt-bg">${imgUrl(d.stmtImage) ? `<img src="${esc(imgUrl(d.stmtImage))}" alt="${esc(d.stmtText || '')}" class="${(d.stmtImageFit || "cover") === 'cover' ? 'fit-cover' : 'fit-contain'}">` : ""}</div>
+        <div class="stmt-overlay"></div>
         <div class="wrap">
           <p class="stmt-text reveal">${esc(d.stmtText)}</p>
         </div>
@@ -557,7 +559,10 @@ export function generateHTML(
 
   /* hero */
   .hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden}
-  .hero-bg{position:absolute;inset:-12% 0;background-size:cover;background-position:center;will-change:transform;z-index:0}
+  .hero-bg{position:absolute;inset:-12% 0;z-index:0;will-change:transform;overflow:hidden}
+  .hero-bg img{width:100%;height:100%;display:block}
+  .hero-bg img.fit-cover{object-fit:cover}
+  .hero-bg img.fit-contain{object-fit:contain;background:#111}
   .hero-overlay{position:absolute;inset:0;z-index:1;
     background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.5) 55%,rgba(0,0,0,.72) 100%)}
   .attribution{position:absolute;z-index:5;font-size:11px;color:rgba(255,255,255,.82);background:rgba(0,0,0,.5);padding:5px 9px;border-radius:4px;backdrop-filter:blur(4px);opacity:0;transition:opacity .25s ease;pointer-events:none}
@@ -587,9 +592,11 @@ export function generateHTML(
   .section--tight{padding:120px 0 90px}
   .about-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:64px;align-items:center}
   .about-grid p{color:var(--muted);font-size:1.05rem;max-width:52ch}
-  .about-img{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--surface)}
-  .about-img img{width:100%;height:100%;object-fit:cover}
-  @media(max-width:820px){.about-grid{grid-template-columns:1fr;gap:40px}.about-img{aspect-ratio:16/10}}
+  .about-img{position:relative;border-radius:6px;overflow:hidden;background:var(--surface);width:100%}
+  .about-img img{width:100%;height:auto;display:block;border-radius:6px}
+  .about-img img.fit-cover{object-fit:cover;aspect-ratio:4/5}
+  @media(max-width:820px){.about-grid{grid-template-columns:1fr;gap:40px}
+    .about-img img.fit-cover{aspect-ratio:16/10}}
 
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .card{padding:40px 32px;border:1px solid var(--line);border-radius:6px;background:var(--surface);transition:.3s}
@@ -599,17 +606,23 @@ export function generateHTML(
   @media(max-width:820px){.grid{grid-template-columns:1fr}}
 
   /* statement (parallax) */
-  .stmt{padding:160px 0;background-size:cover;background-position:center;background-attachment:fixed;text-align:center}
+  .stmt{position:relative;overflow:hidden;text-align:center;min-height:60vh;display:flex;align-items:center}
+  .stmt-bg{position:absolute;inset:0;z-index:0;overflow:hidden}
+  .stmt-bg img{width:100%;height:100%;display:block}
+  .stmt-bg img.fit-cover{object-fit:cover}
+  .stmt-bg img.fit-contain{object-fit:contain;background:#111}
+  .stmt-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.45) 0%,rgba(0,0,0,.45) 100%)}
+  .stmt .wrap{position:relative;z-index:2;padding:160px 0;width:100%}
   .stmt-text{font-family:'${p.display}',serif;font-size:clamp(1.6rem,3.4vw,2.7rem);color:#fff;
     max-width:22ch;margin:0 auto;line-height:1.2;font-weight:500}
-  @media(max-width:820px){.stmt{background-attachment:scroll;padding:110px 0}}
+  @media(max-width:820px){.stmt .wrap{padding:110px 0}}
 
   /* gallery */
-  .gallery{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:0 8px;max-width:1400px;margin:48px auto 0}
-  .g-item{position:relative;flex:1 1 300px;max-width:calc(33.333% - 6px);aspect-ratio:4/5;overflow:hidden;border-radius:4px;background:var(--surface)}
-  .g-item img{width:100%;height:100%;object-fit:cover;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+  .gallery{column-count:3;column-gap:8px;padding:0 8px;max-width:1400px;margin:48px auto 0}
+  .g-item{position:relative;break-inside:avoid;overflow:hidden;border-radius:4px;background:var(--surface);margin-bottom:8px}
+  .g-item img{width:100%;display:block;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
   .g-item:hover img{transform:scale(1.06)}
-  @media(max-width:820px){.g-item{max-width:calc(50% - 4px)}}
+  @media(max-width:820px){.gallery{column-count:2}}
 
   /* final cta */
   .cta{padding:140px 0;text-align:center;border-top:1px solid var(--line)}
@@ -821,7 +834,7 @@ ${customBody}
 </header>
 
 <section id="inicio" class="hero">
-  <div class="hero-bg" style="background-image:url('${esc(imgUrl(d.heroImage))}')"></div>
+  <div class="hero-bg" id="hero-bg">${imgUrl(d.heroImage) ? `<img src="${esc(imgUrl(d.heroImage))}" alt="${esc(d.tagline || "")}" id="hero-img" class="${(d.heroImageFit || "cover") === 'cover' ? 'fit-cover' : 'fit-contain'}">` : ""}</div>
   <div class="hero-overlay"></div>
   ${attributionHTML(d.heroImage, "attribution--hero")}
   <div class="hero-inner">
@@ -843,7 +856,7 @@ ${customBody}
         <h2 class="reveal">${esc(d.aboutTitle || "")}</h2>
         <p class="reveal" style="transition-delay:80ms">${esc(d.aboutText || "")}</p>
       </div>
-      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(imgUrl(d.aboutImage))}" alt="${S.navNosotros}" loading="lazy">${attributionHTML(d.aboutImage, "attribution--about")}</div>` : ""}
+      ${d.aboutImage ? `<div class="about-img reveal" style="transition-delay:120ms"><img src="${esc(imgUrl(d.aboutImage))}" alt="${S.navNosotros}" class="${(d.aboutImageFit || "cover") === 'cover' ? 'fit-cover' : ''}" loading="lazy">${attributionHTML(d.aboutImage, "attribution--about")}</div>` : ""}
     </div>
   </div>
 </section>

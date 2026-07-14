@@ -115,11 +115,14 @@ const DEFAULT = {
   heroSubtext: "Diseñamos interiores serenos y atemporales donde cada material y cada detalle tiene un propósito.",
   ctaText: "Hablar por WhatsApp",
   heroImage: { url: "https://picsum.photos/seed/lumenhero/1800/1100" },
+  heroImageFit: "cover",
   aboutTitle: "Diseño con intención",
   aboutText: "Somos un estudio enfocado en crear ambientes que equilibran función y emoción. Trabajamos de cerca con cada cliente, cuidando la proporción, la luz natural y la calidez de los materiales para que el resultado se sienta, antes de verse.",
   aboutImage: { url: "https://picsum.photos/seed/lumenabout/1000/1250" },
+  aboutImageFit: "cover",
   stmtText: "El buen diseño es invisible: se siente antes de verse.",
   stmtImage: { url: "https://picsum.photos/seed/lumenstmt/1800/1000" },
+  stmtImageFit: "cover",
   servicesTitle: "Cómo trabajamos",
   services: [
     { title: "Interiorismo", desc: "Proyectos integrales de interior, desde el concepto hasta el último detalle de ejecución." },
@@ -470,9 +473,15 @@ export default function ParaluxBuilder({ initialData, onChange, device, onDevice
                   />
 
                   <div className="px-sub" style={{ marginTop: 22 }}>Imágenes actuales</div>
-                  <ImageField label="Imagen del hero (fondo)" value={d.heroImage} onChange={(v) => set("heroImage", v)} />
-                  <ImageField label="Imagen de «Nosotros»" value={d.aboutImage} onChange={(v) => set("aboutImage", v)} hint="Déjalo vacío para ocultar la imagen." />
-                  <ImageField label="Imagen de la frase (parallax)" value={d.stmtImage} onChange={(v) => set("stmtImage", v)} />
+                  <ImageField label="Imagen del hero (fondo)" value={d.heroImage} onChange={(v) => set("heroImage", v)}
+                    objectFit={d.heroImageFit || "cover"} onFitChange={(v) => set("heroImageFit", v)}
+                    ratioHint="Proporción recomendada: 16:9 o 16:10. 'Completa' muestra la imagen entera; 'Recortada' llena el fondo." />
+                  <ImageField label="Imagen de «Nosotros»" value={d.aboutImage} onChange={(v) => set("aboutImage", v)}
+                    objectFit={d.aboutImageFit || "cover"} onFitChange={(v) => set("aboutImageFit", v)}
+                    ratioHint="Proporción recomendada: 4:5 o 4:3. Déjalo vacío para ocultar la imagen." />
+                  <ImageField label="Imagen de la frase (parallax)" value={d.stmtImage} onChange={(v) => set("stmtImage", v)}
+                    objectFit={d.stmtImageFit || "cover"} onFitChange={(v) => set("stmtImageFit", v)}
+                    ratioHint="Proporción recomendada: 16:9 o 21:9. 'Completa' muestra la imagen entera sobre fondo oscuro." />
 
                   <div className="px-sub">
                     Galería <span style={{ color: "var(--lo)", fontWeight: 400, fontSize: ".72rem" }}>{(d.gallery || []).length}</span>
@@ -957,11 +966,12 @@ function Field({ label, v, on, ph, hint, area }) {
 }
 
 /* ---------- image field with upload ---------- */
-function ImageField({ label, value, onChange, hint }) {
+function ImageField({ label, value, onChange, hint, objectFit, onFitChange, ratioHint }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const isObject = value && typeof value === "object";
   const url = isObject ? value.url || "" : value || "";
+  const fit = objectFit || "cover";
 
   function updateUrl(newUrl) {
     if (isObject) {
@@ -1014,6 +1024,25 @@ function ImageField({ label, value, onChange, hint }) {
   return (
     <div className="px-field">
       <span className="px-label">{label}</span>
+      {url && (
+        <div style={{ position: "relative", marginBottom: 8, borderRadius: 8, overflow: "hidden", border: "1px solid var(--line)", background: "#0a0a0f" }}>
+          <img
+            src={url}
+            alt={label}
+            style={{
+              width: "100%",
+              height: 140,
+              objectFit: fit,
+              display: "block",
+              transition: "object-fit .25s",
+            }}
+            onError={(e) => { e.target.style.display = "none"; }}
+          />
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "4px 8px", background: "linear-gradient(transparent, rgba(0,0,0,.7))", fontSize: ".65rem", color: "rgba(255,255,255,.75)" }}>
+            {fit === "cover" ? "Recortada al marco" : "Se ajusta al contenedor"}
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
           className="px-input"
@@ -1029,6 +1058,27 @@ function ImageField({ label, value, onChange, hint }) {
           </span>
         </label>
       </div>
+      {onFitChange && (
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <button
+            type="button"
+            className={`px-btn${fit === "cover" ? " px-btn--ok" : ""}`}
+            style={{ padding: "5px 10px", fontSize: ".72rem", flex: 1, justifyContent: "center" }}
+            onClick={() => onFitChange("cover")}
+          >
+            Recortada (cover)
+          </button>
+          <button
+            type="button"
+            className={`px-btn${fit === "contain" ? " px-btn--ok" : ""}`}
+            style={{ padding: "5px 10px", fontSize: ".72rem", flex: 1, justifyContent: "center" }}
+            onClick={() => onFitChange("contain")}
+          >
+            Completa (contain)
+          </button>
+        </div>
+      )}
+      {ratioHint && <p className="px-hint">{ratioHint}</p>}
       {error && <p className="px-hint" style={{ color: "#ff7a7a" }} role="alert">{error}</p>}
       {hint && <p className="px-hint">{hint}</p>}
     </div>
